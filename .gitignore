@@ -3,3 +3,4 @@
 .idea/*
 target/*
 data/model/*
+data/mnist
