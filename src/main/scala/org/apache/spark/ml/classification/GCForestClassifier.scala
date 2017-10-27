@@ -8,7 +8,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 
 import org.apache.hadoop.fs.Path
-import org.apache.spark.ml.Helper.Accuracy
+import org.apache.spark.ml.Helper.{Accuracy, UserDefinedFunctions => UDF}
 import org.json4s.{DefaultFormats, JObject}
 import org.json4s.JsonDSL._
 import org.apache.spark.ml.linalg._
@@ -148,26 +148,30 @@ class GCForestClassifier(override val uid: String)
     // cross-validation for k classes distribution features
     val splits = MLUtils.kFold(training.toDF.rdd, $(numFolds), $(seed))
     splits.zipWithIndex.foreach {
-      case ((t, v), _) =>
+      case ((t, v), splitIndex) =>
         val trainingDataset = sparkSession.createDataFrame(t, schema).cache
         val validationDataset = sparkSession.createDataFrame(v, schema).cache
         val model = rfc.fit(trainingDataset)
 
         trainingDataset.unpersist()
+        // rawPrediction == probabilityCol
         val val_result = model.transform(validationDataset)
-          .drop($(featuresCol)).drop($(rawPredictionCol)) // rawPrediction == probabilityCol
+          .drop($(featuresCol)).drop($(rawPredictionCol)).drop($(predictionCol))
           .withColumnRenamed($(probabilityCol), $(featuresCol))
         out_train = if (out_train == null) val_result else out_train.union(val_result)
         if (testing != null) {
           val test_result = model.transform(testingDataset)
-            .drop($(featuresCol)).drop($(rawPredictionCol))
-            .withColumnRenamed($(probabilityCol), $(featuresCol))
-          out_test = if (out_test == null) test_result else out_test.union(test_result)
+            .drop($(featuresCol)).drop($(rawPredictionCol)).drop($(predictionCol))
+            .withColumnRenamed($(probabilityCol), $(featuresCol)+s"$splitIndex")
+          out_test = if (out_test == null) test_result
+                     else out_test.join(test_result, Seq($(instanceCol), $(labelCol)))
         }
         validationDataset.unpersist()
     }
     if (testing != null) testingDataset.unpersist()
-    val tes = out_test.collectAsList()
+    out_test = out_test.withColumn($(featuresCol),
+      UDF.mergeVectorForKfold(3)(Range(0, $(numFolds)).map(k => col($(featuresCol) + s"$k")): _*))
+      .select($(instanceCol), $(labelCol), $(featuresCol))
 
     (out_train, out_test, rfc.fit(training))
   }
@@ -272,7 +276,7 @@ class GCForestClassifier(override val uid: String)
 
   def getNowTime(): String = {
     val now: Date = new Date()
-    val dateFormat: SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:SS")
+    val dateFormat: SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SS")
     val hehe = dateFormat.format( now )
     hehe
   }
@@ -428,6 +432,8 @@ class GCForestClassifier(override val uid: String)
         ensemblePredict_test =
         if (ensemblePredict_test == null) predict_test else ensemblePredict_test
           .toDF.union(predict_test)
+        predict.unpersist()
+        predict_test.unpersist()
         transformed._3
       }.toArray
       println(s"[${getNowTime()}] Forests fitting and transforming finished!")
@@ -451,15 +457,14 @@ class GCForestClassifier(override val uid: String)
         val rightCount = grouped.map { group =>
           val rows = group._2
           val label = rows.head.getAs[Double]($(labelCol))
-          val features = new DenseVector(rows.toArray
-            .sortWith(_.getAs[Int]($(forestNumCol)) < _.getAs[Int]($(forestNumCol)))
+          val features = new DenseVector(rows.toArray  // do not need to be put in order
             .flatMap(_.getAs[Vector]($(featuresCol)).toArray)).toArray
           val avgPredict = Array.fill[Double](numClasses)(0d)
           features.indices.foreach{ i =>
             val classType = i % numClasses
             avgPredict(classType) = avgPredict(classType) + features(i)
           }
-          val predict_result = new DenseVector(avgPredict).argmax
+          val predict_result = avgPredict.zipWithIndex.maxBy(_._1)._2
           if (label.toInt == predict_result) 1 else 0
         }.reduce((l, r) => l+r)
         val totalCount = if (idx == 0) n_train else n_test
@@ -502,8 +507,8 @@ class GCForestClassifier(override val uid: String)
 //        getNowTime(), layer_id, accuracy.toString))
 //      train_acc_list += accuracy.getAccuracy
       // ==============================================================================
-      val opt_layer_id_train = get_optimal_layer_id(acc_list(0))
-      val opt_layer_id_test = get_optimal_layer_id(acc_list(1))
+      val opt_layer_id_train = acc_list(0).zipWithIndex.maxBy(_._1)._2
+      val opt_layer_id_test = acc_list(1).zipWithIndex.maxBy(_._1)._2
       lastPrediction = sparkSession.createDataFrame(predictRDDs(0), schema)
       lastPrediction_test = sparkSession.createDataFrame(predictRDDs(1), schema)
       reachMaxLayer =
