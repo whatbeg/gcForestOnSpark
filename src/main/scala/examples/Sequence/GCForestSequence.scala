@@ -14,18 +14,20 @@ object GCForestSequence {
 
     val train = new UCI_adult().load_data("train", 1)
 
+    val test = new UCI_adult().load_data("test", 1)
+
     train.sparkSession.sparkContext.setLogLevel("ERROR")
 
     val gcForest = new GCForestClassifier()
       .setDataSize(Array(113))
       .setDataStyle("sequence")
       .setMultiScanWindow(Array())
-      .setCascadeForestTreeNum(1)
+      .setCascadeForestTreeNum(500)
       .setScanForestTreeNum(1)
       .setMaxIteration(1)
       .setEarlyStoppingRounds(4)
 
-    val model = gcForest.fit(train)
+    val model = gcForest.fit(train, test)
     // model.save(output)
   }
 }

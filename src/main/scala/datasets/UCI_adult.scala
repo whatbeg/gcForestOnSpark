@@ -1,3 +1,7 @@
+/*
+ * Copyright 2017 Authors NJU PASA BigData Laboratory. Qiu Hu. huqiu00#163.com
+ */
+
 package datasets
 
 import org.apache.spark.ml.linalg.DenseVector
@@ -8,9 +12,13 @@ import org.apache.spark.sql.types._
 
 class UCI_adult extends BaseDatasets {
   def load_data(phase: String, cate_as_onehot: Int): DataFrame = {
-    val data_path = if (phase == "train") "data/uci_adult/sample_adult.data" else "data/uci_adult/adult.test"
+    val data_path =
+      if (phase == "train") "data/uci_adult/sample_adult.data"
+      else "data/uci_adult/sample_adult.test"
 
-    val spark = SparkSession.builder().appName(this.getClass.getSimpleName).master("local[*]").getOrCreate()
+    val spark = SparkSession.builder()
+      .appName(this.getClass.getSimpleName)
+      .master("local[*]").getOrCreate()
 
     spark.sparkContext.setLogLevel("ERROR")
     val raw = spark.read.text(data_path)
@@ -29,7 +37,8 @@ class UCI_adult extends BaseDatasets {
 
     val f_parsers_array = f_parsers.collect()
 
-    val dataRDD = raw.rdd.filter(row => row.mkString.length > 1 && !row.mkString.startsWith("|")).zipWithIndex.map { case (row, idx) =>
+    val dataRDD = raw.rdd.filter(row => row.mkString.length > 1 && !row.mkString.startsWith("|"))
+      .zipWithIndex.map { case (row, idx) =>
       val line = row.getAs[String]("value")
       val splits = line.split(",")
       require(splits.length == 15, s"row ${idx}: ${line} has no 15 features, length: ${row.length}")
@@ -37,7 +46,8 @@ class UCI_adult extends BaseDatasets {
       val data = splits.dropRight(1).zipWithIndex.map { case (feature, idx) =>
         f_parsers_array(idx).get_data(feature.trim)
       }.reduce((l, r) => l ++ r)
-      require(data.length == total_dims, "Total dims %d not equal to data.length %d".format(total_dims, data.length))
+      require(data.length == total_dims,
+        "Total dims %d not equal to data.length %d".format(total_dims, data.length))
       Row.fromSeq(Seq[Any](label, data, idx))
     }
 
@@ -54,7 +64,7 @@ class UCI_adult extends BaseDatasets {
 }
 
 class FeatureParser(row: String) extends Serializable {
-  val desc = row.trim
+  private val desc = row.trim
   private val f_type = if (desc == "C") "number" else "categorical"
   private val name_to_len = if (f_type == "categorical") {
     val f_names = Array("?") ++ desc.trim.split(",").map(str => str.trim)
