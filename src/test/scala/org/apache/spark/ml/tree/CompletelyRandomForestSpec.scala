@@ -1,8 +1,10 @@
 /*
  * Copyright 2017 Authors NJU PASA BigData Laboratory. Qiu Hu. huqiu00#163.com
  */
+package org.apache.spark.ml.tree
 
 import org.apache.spark.ml.Pipeline
+import org.apache.spark.ml.Utils.SparkUnitTest
 import org.apache.spark.ml.classification.{CompletelyRandomForestClassifier, RandomForestCARTModel, RandomForestClassifier}
 import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
 import org.apache.spark.ml.feature.{IndexToString, StringIndexer, VectorIndexer}

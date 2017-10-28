@@ -69,7 +69,7 @@ private[ml] trait GCForestParams extends HasSeed with HasTreeNumCol {
   def setEarlyStoppingRounds(value: Int): this.type = set(earlyStoppingRounds, value)
 
   final val earlyStopByTest: BooleanParam = new BooleanParam(this, "earlyStopByTest", "")
-  setDefault(earlyStopByTest -> false)
+  setDefault(earlyStopByTest -> true)
   def setEarlyStopByTest(value: Boolean): this.type = set(earlyStopByTest, value)
 
   final val dataStyle: Param[String] = new Param[String](
