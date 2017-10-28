@@ -4,3 +4,4 @@
 target/*
 data/model/*
 data/mnist
+data/*

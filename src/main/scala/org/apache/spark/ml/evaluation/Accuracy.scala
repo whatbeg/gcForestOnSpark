@@ -31,4 +31,8 @@ class Accuracy(right: Double, total: Double) extends Metric {
   override def toString: String = {
     s"Accuracy($rightCount / $totalCount = %.3f%%)".format(accuracy * 100.0)
   }
+
+  def equals(obj: Accuracy): Boolean = {
+    (this.rightCount == obj.rightCount) && (this.totalCount == obj.totalCount)
+  }
 }

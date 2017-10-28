@@ -5,6 +5,7 @@ package org.apache.spark.ml.evaluation
 
 import org.apache.spark.ml.Utils.SparkUnitTest
 import org.apache.spark.ml.linalg.{DenseVector, Vector}
+import Evaluator.evaluate
 
 class EvaluatorSpec extends SparkUnitTest {
   test("evaluate") {
@@ -14,9 +15,8 @@ class EvaluatorSpec extends SparkUnitTest {
       (1L, 1.0, new DenseVector(Array(0.8, 0.2))),
       (3L, 0.0, new DenseVector(Array(0.23, 0.77)))
     )).toDF("instance", "label", "features")
-    val ds = dataset.collectAsList()
-    val t = dataset.rdd
-    val acc = Evaluator.evaluate(dataset)
-    println(acc)
+    val acc = evaluate(dataset)
+    assert(acc.equals(new Accuracy(2.0, 4.0)))
   }
+
 }

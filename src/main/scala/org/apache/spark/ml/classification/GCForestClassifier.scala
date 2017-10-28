@@ -417,7 +417,8 @@ class GCForestClassifier(override val uid: String)
   private def train(dataset: Dataset[_], testset: Dataset[_]): GCForestClassificationModel = {
     val numClasses: Int = getNumClasses(dataset)
     val erfModels = ArrayBuffer[Array[RandomForestCARTModel]]()
-
+    val n_train = dataset.count()
+    val n_test = testset.count()
     val (scanFeature_train, mgsModels) = multi_grain_Scan(dataset)
 
     val (scanFeature_test, mgsModels_test) =
@@ -435,7 +436,7 @@ class GCForestClassifier(override val uid: String)
     var layer_id = 1
     var reachMaxLayer = false
     while (!reachMaxLayer) {
-      println(s"[${getNowTime()}] Cascade Forest Layer ${layer_id}")
+      println(s"[${getNowTime()}] Training Cascade Forest Layer ${layer_id}")
       val ensembleRandomForest = Array[RandomForestClassifier](
         genRFClassifier("rfc", $(cascadeForestTreeNum), $(cascadeForestMinInstancesPerNode)),
         genRFClassifier("rfc", $(cascadeForestTreeNum), $(cascadeForestMinInstancesPerNode)),
@@ -449,11 +450,8 @@ class GCForestClassifier(override val uid: String)
 
       val training = mergeFeatureAndPredict(scanFeature_train, lastPrediction)
       val testing = mergeFeatureAndPredict(scanFeature_test, lastPrediction_test)
-      // TODO: Do not need count at every layer
-      val n_train = training.count()
-      val n_test = testing.count()
+
       val features_dim = training.first().mkString.split(",").length
-      // val fts = training.collectAsList().get(0)
       println(s"[${getNowTime()}] Training Set = ($n_train, $features_dim), " +
         s"Testing Set = ($n_test, $features_dim)")
 

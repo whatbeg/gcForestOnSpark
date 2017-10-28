@@ -40,7 +40,7 @@ object Evaluator {
       val features = row.getAs[Vector]("features")
       val label = row.getAs[Double]("label")
       if (features.argmax == label.toInt) 1d else 0d
-    }.filter(_ > 0).count()
+    }.reduce((l, r) => l+r)
     val totalCount = dataset.count()
     new Accuracy(rightCount, totalCount)
   }

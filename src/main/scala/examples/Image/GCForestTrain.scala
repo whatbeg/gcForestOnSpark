@@ -1,6 +1,7 @@
 /*
  * Copyright 2017 Authors NJU PASA BigData Laboratory. Qiu Hu. huqiu00#163.com
  */
+package examples.Image
 
 import org.apache.spark.ml.classification.GCForestClassifier
 import org.apache.spark.ml.linalg.DenseVector

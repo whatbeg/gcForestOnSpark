@@ -24,7 +24,7 @@ object GCForestSequence {
       .setMultiScanWindow(Array())
       .setCascadeForestTreeNum(500)
       .setScanForestTreeNum(1)
-      .setMaxIteration(2)
+      .setMaxIteration(1)
       .setEarlyStoppingRounds(4)
 
     val model = gcForest.fit(train, test)
