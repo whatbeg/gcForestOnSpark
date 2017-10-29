@@ -514,11 +514,14 @@ class GCForestClassifier(override val uid: String)
           (if (idx == 0) layer_train_metric.getAccuracy else layer_test_metric.getAccuracy)
         predictRDD
       }
+      ensemblePredict.unpersist()
+      ensemblePredict_test.unpersist()
       println(s"[${getNowTime()}] Get prediction RDD finished!")
       val opt_layer_id_train = acc_list(0).zipWithIndex.maxBy(_._1)._2
       val opt_layer_id_test = acc_list(1).zipWithIndex.maxBy(_._1)._2
       lastPrediction = sparkSession.createDataFrame(predictRDDs(0), schema)
       lastPrediction_test = sparkSession.createDataFrame(predictRDDs(1), schema)
+      predictRDDs.map(r => r.unpersist())
       val outOfRounds =
         ($(earlyStopByTest) && layer_id - opt_layer_id_test >= $(earlyStoppingRounds)) ||
         (!$(earlyStopByTest) && layer_id - opt_layer_id_train >= $(earlyStoppingRounds))
