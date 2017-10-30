@@ -198,6 +198,7 @@ class GCForestClassifier(override val uid: String)
 
     if (testing != null) require(training.schema.equals(testing.schema))
     val testingDataset = if (testing == null) null else testing.toDF
+    val test_partition = testing.rdd.getNumPartitions
 
     // cross-validation for k classes distribution features
     var train_metric = new Accuracy(0, 0)
@@ -232,6 +233,7 @@ class GCForestClassifier(override val uid: String)
     out_test = out_test.withColumn($(featuresCol),
       UDF.mergeVectorForKfold(3)(Range(0, $(numFolds)).map(k => col($(featuresCol) + s"$k")): _*))
       .select($(instanceCol), $(labelCol), $(featuresCol))
+      .repartition(out_test.sparkSession.sparkContext.defaultParallelism)
     val test_metric = if (!isScan) Evaluator.evaluate(out_test) else new Accuracy(0, 0)
     (out_train, out_test, train_metric, test_metric, rfc.fit(training))
   }
@@ -435,6 +437,8 @@ class GCForestClassifier(override val uid: String)
     require(maxIteration > 0, "Zero maxIteration")
     var layer_id = 1
     var reachMaxLayer = false
+    val numPartitions_train = scanFeature_train.rdd.getNumPartitions
+    val numPartitions_test = scanFeature_test.rdd.getNumPartitions
     while (!reachMaxLayer) {
       println(s"[${getNowTime()}] Training Cascade Forest Layer ${layer_id}")
       val ensembleRandomForest = Array[RandomForestClassifier](
@@ -449,8 +453,9 @@ class GCForestClassifier(override val uid: String)
       )
 
       val training = mergeFeatureAndPredict(scanFeature_train, lastPrediction)
+        .repartition(numPartitions_train)
       val testing = mergeFeatureAndPredict(scanFeature_test, lastPrediction_test)
-
+        .repartition(numPartitions_test)
       val features_dim = training.first().mkString.split(",").length
       println(s"[${getNowTime()}] Training Set = ($n_train, $features_dim), " +
         s"Testing Set = ($n_test, $features_dim)")

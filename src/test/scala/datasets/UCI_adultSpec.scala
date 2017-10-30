@@ -4,11 +4,11 @@
 
 package datasets
 
-import org.scalatest.FlatSpec
+import org.apache.spark.ml.Utils.SparkUnitTest
 
-class UCI_adultSpec extends FlatSpec {
+class UCI_adultSpec extends SparkUnitTest {
 
-  val data = new UCI_adult().load_data("train", 1)
+  val data = new UCI_adult().load_data(spark, "train", 1)
   val list = data.collectAsList()
   println(list)
 }

@@ -35,13 +35,14 @@ object Evaluator {
     require(schema_string.contains("instance"), "DataSet has no instance col")
     require(schema_string.contains("label"), "DataSet has no label col")
     require(schema_string.contains("features"), "DataSet has no features col")
-
+    println(s"dataset partitions: ${dataset.rdd.getNumPartitions}")
     val rightCount = dataset.rdd.map { case (row: Row) =>
       val features = row.getAs[Vector]("features")
       val label = row.getAs[Double]("label")
       if (features.argmax == label.toInt) 1d else 0d
     }.reduce((l, r) => l+r)
     val totalCount = dataset.count()
+    println(s"total Count = $totalCount")
     new Accuracy(rightCount, totalCount)
   }
 }

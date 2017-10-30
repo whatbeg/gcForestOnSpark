@@ -5,6 +5,7 @@ package examples.Sequence
 
 import org.apache.spark.ml.classification.GCForestClassifier
 import datasets.UCI_adult
+import org.apache.spark.sql.SparkSession
 
 
 object GCForestSequence {
@@ -12,11 +13,15 @@ object GCForestSequence {
 
     val output = "data/uci_adult/model"
 
-    val train = new UCI_adult().load_data("train", 1)
+    val spark = SparkSession.builder()
+      .appName(this.getClass.getSimpleName)
+      .master("local[*]").getOrCreate()
 
-    val test = new UCI_adult().load_data("test", 1)
+    spark.sparkContext.setLogLevel("ERROR")
 
-    train.sparkSession.sparkContext.setLogLevel("ERROR")
+    val train = new UCI_adult().load_data(spark, "train", 1)
+
+    val test = new UCI_adult().load_data(spark, "test", 1)
 
     val gcForest = new GCForestClassifier()
       .setDataSize(Array(113))

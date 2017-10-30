@@ -11,16 +11,11 @@ import org.apache.spark.sql.types._
 
 
 class UCI_adult extends BaseDatasets {
-  def load_data(phase: String, cate_as_onehot: Int): DataFrame = {
+  def load_data(spark: SparkSession, phase: String, cate_as_onehot: Int): DataFrame = {
     val data_path =
       if (phase == "train") "data/uci_adult/sample_adult.data"
       else "data/uci_adult/sample_adult.test"
 
-    val spark = SparkSession.builder()
-      .appName(this.getClass.getSimpleName)
-      .master("local[*]").getOrCreate()
-
-    spark.sparkContext.setLogLevel("ERROR")
     val raw = spark.read.text(data_path)
 
     val features_path = "data/uci_adult/features"
