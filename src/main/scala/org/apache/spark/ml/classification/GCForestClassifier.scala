@@ -20,6 +20,7 @@ import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.sql.{DataFrame, Dataset, Row}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{DoubleType, LongType, StructField, StructType}
+import org.apache.spark.storage.StorageLevel
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -198,7 +199,7 @@ class GCForestClassifier(override val uid: String)
 
     if (testing != null) require(training.schema.equals(testing.schema))
     val testingDataset = if (testing == null) null else testing.toDF
-    val test_partition = math.min(testing.rdd.getNumPartitions,
+    val test_partition = math.max(testing.rdd.getNumPartitions,
        sparkSession.sparkContext.defaultParallelism)
 
     // cross-validation for k classes distribution features
@@ -230,7 +231,6 @@ class GCForestClassifier(override val uid: String)
         }
         validationDataset.unpersist()
     }
-//    if (testing != null) testingDataset.unpersist()
     out_test = out_test.withColumn($(featuresCol),
       UDF.mergeVectorForKfold(3)(Range(0, $(numFolds)).map(k => col($(featuresCol) + s"$k")): _*))
       .select($(instanceCol), $(labelCol), $(featuresCol))
@@ -432,6 +432,7 @@ class GCForestClassifier(override val uid: String)
 
     println(s"[${getNowTime()}] Cascade Forest begin!")
     val sparkSession = scanFeature_train.sparkSession
+    val sc = sparkSession.sparkContext
     var lastPrediction: DataFrame = null
     var lastPrediction_test: DataFrame = null
     val acc_list = Array(ArrayBuffer[Double](), ArrayBuffer[Double]())
@@ -441,10 +442,10 @@ class GCForestClassifier(override val uid: String)
     require(maxIteration > 0, "Non-positive maxIteration")
     var layer_id = 1
     var reachMaxLayer = false
-    val numPartitions_train = math.min(scanFeature_train.rdd.getNumPartitions,
-      sparkSession.sparkContext.defaultParallelism)
-    val numPartitions_test = math.min(scanFeature_test.rdd.getNumPartitions,
-      sparkSession.sparkContext.defaultParallelism)
+    val numPartitions_train = math.max(scanFeature_train.rdd.getNumPartitions,
+      sc.defaultParallelism)
+    val numPartitions_test = math.max(scanFeature_test.rdd.getNumPartitions,
+      sc.defaultParallelism)
     while (!reachMaxLayer) {
       println(s"[${getNowTime()}] Training Cascade Forest Layer ${layer_id}")
       val ensembleRandomForest = Array[RandomForestClassifier](
@@ -458,11 +459,11 @@ class GCForestClassifier(override val uid: String)
         genRFClassifier("crfc", $(cascadeForestTreeNum), $(cascadeForestMinInstancesPerNode))
       )
 
-      val training = mergeFeatureAndPredict(scanFeature_train, lastPrediction)
-        .repartition(numPartitions_train).cache()
-      val testing = mergeFeatureAndPredict(scanFeature_test, lastPrediction_test)
-        .repartition(numPartitions_test).cache()
-      val features_dim = training.first().mkString.split(",").length
+      val training = sc.broadcast(mergeFeatureAndPredict(scanFeature_train, lastPrediction)
+        .repartition(numPartitions_train))
+      val testing = sc.broadcast(mergeFeatureAndPredict(scanFeature_test, lastPrediction_test)
+        .repartition(numPartitions_test))
+      val features_dim = training.value.first().mkString.split(",").length
       println(s"[${getNowTime()}] Training Set = ($n_train, $features_dim), " +
         s"Testing Set = ($n_test, $features_dim)")
 
@@ -472,7 +473,7 @@ class GCForestClassifier(override val uid: String)
       var layer_test_metric: Accuracy = new Accuracy(0, 0)
       println(s"[${getNowTime()}] Forests fitting and transforming ......")
       erfModels += ensembleRandomForest.indices.map { it =>
-        val transformed = featureTransform(training, testing, ensembleRandomForest(it),
+        val transformed = featureTransform(training.value, testing.value, ensembleRandomForest(it),
           false, s"layer [$layer_id] - estimator [$it]")
         val predict = transformed._1
           .withColumn($(forestNumCol), lit(it))
@@ -523,12 +524,13 @@ class GCForestClassifier(override val uid: String)
       }
 //      ensemblePredict.unpersist()
 //      ensemblePredict_test.unpersist()
+      predictRDDs.foreach(r => r.persist(StorageLevel.MEMORY_ONLY_SER))
       println(s"[${getNowTime()}] Get prediction RDD finished!")
       val opt_layer_id_train = acc_list(0).zipWithIndex.maxBy(_._1)._2
       val opt_layer_id_test = acc_list(1).zipWithIndex.maxBy(_._1)._2
+
       lastPrediction = sparkSession.createDataFrame(predictRDDs(0), schema).cache()
       lastPrediction_test = sparkSession.createDataFrame(predictRDDs(1), schema).cache()
-//      predictRDDs.foreach(r => r.unpersist())
       val outOfRounds =
         ($(earlyStopByTest) && layer_id - opt_layer_id_test >= $(earlyStoppingRounds)) ||
         (!$(earlyStopByTest) && layer_id - opt_layer_id_train >= $(earlyStoppingRounds))
