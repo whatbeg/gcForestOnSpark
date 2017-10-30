@@ -28,6 +28,10 @@ class Accuracy(right: Double, total: Double) extends Metric {
     new Accuracy(this.rightCount / value, this.totalCount)
   }
 
+  def div(value: Double): Accuracy = {
+    new Accuracy(this.rightCount / value, this.totalCount / value)
+  }
+
   override def toString: String = {
     s"Accuracy($rightCount / $totalCount = %.3f%%)".format(accuracy * 100.0)
   }
