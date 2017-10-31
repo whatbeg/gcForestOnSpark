@@ -207,8 +207,10 @@ class GCForestClassifier(override val uid: String)
     val splits = MLUtils.kFold(training.toDF.rdd, $(numFolds), $(seed))
     splits.zipWithIndex.foreach {
       case ((t, v), splitIndex) =>
-        val trainingDataset = sparkSession.createDataFrame(t, schema).cache
-        val validationDataset = sparkSession.createDataFrame(v, schema).cache
+        val trainingDataset = sparkSession.createDataFrame(t, schema)
+        val validationDataset = sparkSession.createDataFrame(v, schema)
+        println(s"trainDataset, valDataset = ${trainingDataset.first().mkString} " +
+          s"${validationDataset.first().mkString}")
         val model = rfc.fit(trainingDataset)
 
         trainingDataset.unpersist()
@@ -459,11 +461,11 @@ class GCForestClassifier(override val uid: String)
         genRFClassifier("crfc", $(cascadeForestTreeNum), $(cascadeForestMinInstancesPerNode))
       )
 
-      val training = sc.broadcast(mergeFeatureAndPredict(scanFeature_train, lastPrediction)
-        .repartition(numPartitions_train))
-      val testing = sc.broadcast(mergeFeatureAndPredict(scanFeature_test, lastPrediction_test)
-        .repartition(numPartitions_test))
-      val features_dim = training.value.first().mkString.split(",").length
+      val training = mergeFeatureAndPredict(scanFeature_train, lastPrediction)
+        .repartition(numPartitions_train).cache()
+      val testing = mergeFeatureAndPredict(scanFeature_test, lastPrediction_test)
+        .repartition(numPartitions_test).cache()
+      val features_dim = training.first().mkString.split(",").length
       println(s"[${getNowTime()}] Training Set = ($n_train, $features_dim), " +
         s"Testing Set = ($n_test, $features_dim)")
 
@@ -473,7 +475,7 @@ class GCForestClassifier(override val uid: String)
       var layer_test_metric: Accuracy = new Accuracy(0, 0)
       println(s"[${getNowTime()}] Forests fitting and transforming ......")
       erfModels += ensembleRandomForest.indices.map { it =>
-        val transformed = featureTransform(training.value, testing.value, ensembleRandomForest(it),
+        val transformed = featureTransform(training, testing, ensembleRandomForest(it),
           false, s"layer [$layer_id] - estimator [$it]")
         val predict = transformed._1
           .withColumn($(forestNumCol), lit(it))
@@ -524,7 +526,7 @@ class GCForestClassifier(override val uid: String)
       }
 //      ensemblePredict.unpersist()
 //      ensemblePredict_test.unpersist()
-      predictRDDs.foreach(r => r.persist(StorageLevel.MEMORY_ONLY_SER))
+      //predictRDDs.foreach(r => r.persist(StorageLevel.MEMORY_ONLY_SER))
       println(s"[${getNowTime()}] Get prediction RDD finished!")
       val opt_layer_id_train = acc_list(0).zipWithIndex.maxBy(_._1)._2
       val opt_layer_id_test = acc_list(1).zipWithIndex.maxBy(_._1)._2

@@ -139,7 +139,8 @@ private [spark] object CompletelyRandomForestImpl extends Logging {
 
       // Choose node splits, and enqueue new nodes as needed.
       timer.start("findRandomSplits")
-      CompletelyRandomForestImpl.findRandomSplits(baggedInput, metadata, topNodesForGroup, nodesForGroup,
+      CompletelyRandomForestImpl
+        .findRandomSplits(baggedInput, metadata, topNodesForGroup, nodesForGroup,
         treeToNodeToIndexInfo, splits, nodeStack, timer, nodeIdCache)
       timer.stop("findRandomSplits")
     }
@@ -399,7 +400,8 @@ private [spark] object CompletelyRandomForestImpl extends Logging {
       * Do the same thing as binSeqOp, but with nodeIdCache.
       */
     def binSeqOpWithNodeIdCache(agg: Array[DTStatsAggregator],
-                                dataPoint: (BaggedPoint[TreePoint], Array[Int])): Array[DTStatsAggregator] = {
+                                dataPoint: (BaggedPoint[TreePoint], Array[Int])):
+    Array[DTStatsAggregator] = {
       treeToNodeToIndexInfo.foreach { case (treeIndex, nodeIndexToInfo) =>
         val baggedPoint = dataPoint._1
         val nodeIdCache = dataPoint._2
@@ -414,7 +416,8 @@ private [spark] object CompletelyRandomForestImpl extends Logging {
       * Get node index in group --> features indices map,
       * which is a short cut to find feature indices for a node given node index in group.
       */
-    def getNodeToFeatures(treeToNodeToIndexInfo: Map[Int, Map[Int, NodeIndexInfo]]): Option[Map[Int, Array[Int]]] = {
+    def getNodeToFeatures(treeToNodeToIndexInfo: Map[Int, Map[Int, NodeIndexInfo]]):
+    Option[Map[Int, Array[Int]]] = {
       if (!metadata.subsamplingFeatures) {
         None
       } else {
@@ -649,7 +652,8 @@ private [spark] object CompletelyRandomForestImpl extends Logging {
 
     // For each (feature, split), calculate the gain, and select the random (feature, split).
     val allRand = new Random(System.currentTimeMillis())
-    val featureSplitsAndImpurityStats = validFeatureSplits.map { case (featureIndexIdx, featureIndex) =>
+    val featureSplitsAndImpurityStats = validFeatureSplits.map {
+      case (featureIndexIdx, featureIndex) =>
       val numSplits = binAggregates.metadata.numSplits(featureIndex)
       val rand = new Random(System.currentTimeMillis())
       if (binAggregates.metadata.isContinuous(featureIndex)) {
@@ -1009,7 +1013,8 @@ private [spark] object CompletelyRandomForestImpl extends Logging {
   private[tree] def selectNodesToSplit(nodeStack: mutable.Stack[(Int, LearningNode)],
                                        maxMemoryUsage: Long,
                                        metadata: DecisionTreeMetadata,
-                                       rng: Random): (Map[Int, Array[LearningNode]], Map[Int, Map[Int, NodeIndexInfo]]) = {
+                                       rng: Random):
+  (Map[Int, Array[LearningNode]], Map[Int, Map[Int, NodeIndexInfo]]) = {
     // Collect some nodes to split:
     //  nodesForGroup(treeIndex) = nodes to split
     val mutableNodesForGroup = new mutable.HashMap[Int, mutable.ArrayBuffer[LearningNode]]()
