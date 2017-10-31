@@ -23,6 +23,7 @@ import org.apache.spark.sql.types.{DoubleType, LongType, StructField, StructType
 import org.apache.spark.storage.StorageLevel
 
 import scala.collection.mutable.ArrayBuffer
+import scala.util.Random
 
 
 class GCForestClassifier(override val uid: String)
@@ -30,6 +31,7 @@ class GCForestClassifier(override val uid: String)
   with DefaultParamsWritable with GCForestParams {
 
   def this() = this(Identifiable.randomUID("gcf"))
+  val dateFormat: SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS")
 
   /**
     * Scan Sequence Data
@@ -209,8 +211,6 @@ class GCForestClassifier(override val uid: String)
       case ((t, v), splitIndex) =>
         val trainingDataset = sparkSession.createDataFrame(t, schema)
         val validationDataset = sparkSession.createDataFrame(v, schema)
-        println(s"trainDataset, valDataset = ${trainingDataset.first().mkString} " +
-          s"${validationDataset.first().mkString}")
         val model = rfc.fit(trainingDataset)
 
         trainingDataset.unpersist()
@@ -222,7 +222,7 @@ class GCForestClassifier(override val uid: String)
         if (!isScan) {
           val val_acc = Evaluator.evaluate(val_result)
           train_metric += val_acc
-          println(s"[${getNowTime()}] $message 3_folds.train_$splitIndex = $val_acc")
+          println(s"[${getNowTime}] $message 3_folds.train_$splitIndex = $val_acc")
         }
         if (testing != null) {
           val test_result = model.transform(testingDataset)
@@ -255,6 +255,7 @@ class GCForestClassifier(override val uid: String)
       .setMaxDepth($(randomForestMaxDepth))
       .setMinInstancesPerNode(minInstancePerNode)
       .setFeatureSubsetStrategy("sqrt")
+      .setSeed(Random.nextInt())
   }
 
   /**
@@ -339,12 +340,7 @@ class GCForestClassifier(override val uid: String)
     }
   }
 
-  def getNowTime(): String = {
-    val now: Date = new Date()
-    val dateFormat: SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS")
-    val hehe = dateFormat.format( now )
-    hehe
-  }
+  private[spark] def getNowTime = dateFormat.format(new Date())
 
   /**
     *  Multi-Grained Scanning
@@ -354,7 +350,7 @@ class GCForestClassifier(override val uid: String)
     var scanFeature: DataFrame = null
     val mgsModels = ArrayBuffer[MultiGrainedScanModel]()
 
-    println(s"[${getNowTime()}] Multi Grained Scanning begin!")
+    println(s"[${getNowTime}] Multi Grained Scanning begin!")
     if ($(dataStyle) == "image" && $(multiScanWindow).length > 0) {
       require($(multiScanWindow).length % 2 == 0,
         "The multiScanWindow must has the even number for image-style data")
@@ -408,7 +404,7 @@ class GCForestClassifier(override val uid: String)
     if ($(multiScanWindow).length == 0)
       scanFeature = dataset.toDF
     // scanFeature: (instanceId, label, feature)
-    println(s"[${getNowTime()}] Multi Grained Scanning finished!")
+    println(s"[${getNowTime}] Multi Grained Scanning finished!")
     (scanFeature, mgsModels.toArray)
   }
 
@@ -432,7 +428,7 @@ class GCForestClassifier(override val uid: String)
     scanFeature_train.cache()
     if (testset != null) scanFeature_test.cache()
 
-    println(s"[${getNowTime()}] Cascade Forest begin!")
+    println(s"[${getNowTime}] Cascade Forest begin!")
     val sparkSession = scanFeature_train.sparkSession
     val sc = sparkSession.sparkContext
     var lastPrediction: DataFrame = null
@@ -449,7 +445,7 @@ class GCForestClassifier(override val uid: String)
     val numPartitions_test = math.max(scanFeature_test.rdd.getNumPartitions,
       sc.defaultParallelism)
     while (!reachMaxLayer) {
-      println(s"[${getNowTime()}] Training Cascade Forest Layer ${layer_id}")
+      println(s"[${getNowTime}] Training Cascade Forest Layer ${layer_id}")
       val ensembleRandomForest = Array[RandomForestClassifier](
         genRFClassifier("rfc", $(cascadeForestTreeNum), $(cascadeForestMinInstancesPerNode)),
         genRFClassifier("rfc", $(cascadeForestTreeNum), $(cascadeForestMinInstancesPerNode)),
@@ -466,14 +462,14 @@ class GCForestClassifier(override val uid: String)
       val testing = mergeFeatureAndPredict(scanFeature_test, lastPrediction_test)
         .repartition(numPartitions_test).cache()
       val features_dim = training.first().mkString.split(",").length
-      println(s"[${getNowTime()}] Training Set = ($n_train, $features_dim), " +
+      println(s"[${getNowTime}] Training Set = ($n_train, $features_dim), " +
         s"Testing Set = ($n_test, $features_dim)")
 
       var ensemblePredict: DataFrame = null
       var ensemblePredict_test: DataFrame = null
       var layer_train_metric: Accuracy = new Accuracy(0, 0)
       var layer_test_metric: Accuracy = new Accuracy(0, 0)
-      println(s"[${getNowTime()}] Forests fitting and transforming ......")
+      println(s"[${getNowTime}] Forests fitting and transforming ......")
       erfModels += ensembleRandomForest.indices.map { it =>
         val transformed = featureTransform(training, testing, ensembleRandomForest(it),
           false, s"layer [$layer_id] - estimator [$it]")
@@ -489,26 +485,26 @@ class GCForestClassifier(override val uid: String)
         if (ensemblePredict_test == null) predict_test else ensemblePredict_test
           .union(predict_test)
         layer_train_metric = layer_train_metric + transformed._3
-        println(s"[${getNowTime()}] [Estimator Summary] " +
+        println(s"[${getNowTime}] [Estimator Summary] " +
           s"layer [$layer_id] - estimator [$it] Train.predict = ${transformed._3}")
         layer_test_metric = layer_test_metric + transformed._4
-        println(s"[${getNowTime()}] [Estimator Summary] " +
+        println(s"[${getNowTime}] [Estimator Summary] " +
           s"layer [$layer_id] - estimator [$it]  Test.predict = ${transformed._4}")
 //        predict.unpersist()
 //        predict_test.unpersist()
         transformed._5
       }.toArray
-      println(s"[${getNowTime()}] [Layer Summary] layer [$layer_id] - " +
+      println(s"[${getNowTime}] [Layer Summary] layer [$layer_id] - " +
         s"train.classifier.average = ${layer_train_metric.div(8d)}")
-      println(s"[${getNowTime()}] [Layer Summary] layer [$layer_id] - " +
+      println(s"[${getNowTime}] [Layer Summary] layer [$layer_id] - " +
         s"test.classifier.average = ${layer_test_metric.div(8d)}")
-      println(s"[${getNowTime()}] Forests fitting and transforming finished!")
+      println(s"[${getNowTime}] Forests fitting and transforming finished!")
 
       val schema = new StructType()
         .add(StructField($(instanceCol), LongType))
         .add(StructField($(featuresCol), new VectorUDT))
 
-      println(s"[${getNowTime()}] Getting prediction RDD ......")
+      println(s"[${getNowTime}] Getting prediction RDD ......")
       val predictRDDs =
         Array(ensemblePredict, ensemblePredict_test).zipWithIndex.map { case (predict, idx) =>
         val grouped = predict.rdd.groupBy(_.getAs[Long]($(instanceCol)))
@@ -527,7 +523,7 @@ class GCForestClassifier(override val uid: String)
 //      ensemblePredict.unpersist()
 //      ensemblePredict_test.unpersist()
       //predictRDDs.foreach(r => r.persist(StorageLevel.MEMORY_ONLY_SER))
-      println(s"[${getNowTime()}] Get prediction RDD finished!")
+      println(s"[${getNowTime}] Get prediction RDD finished! Layer $layer_id training finished!")
       val opt_layer_id_train = acc_list(0).zipWithIndex.maxBy(_._1)._2
       val opt_layer_id_test = acc_list(1).zipWithIndex.maxBy(_._1)._2
 
@@ -537,14 +533,14 @@ class GCForestClassifier(override val uid: String)
         ($(earlyStopByTest) && layer_id - opt_layer_id_test >= $(earlyStoppingRounds)) ||
         (!$(earlyStopByTest) && layer_id - opt_layer_id_train >= $(earlyStoppingRounds))
       if (outOfRounds)
-        println(s"[${getNowTime()}] " +
+        println(s"[${getNowTime}] " +
           s"[Result][Optimal Level Detected] opt_layer_id = " +
           s"${if ($(earlyStopByTest)) opt_layer_id_test else opt_layer_id_train}, " +
           s"accuracy_train=${acc_list(0)(opt_layer_id_train)}, " +
           s"accuracy_test=${acc_list(1)(opt_layer_id_test)}")
       reachMaxLayer = (layer_id == maxIteration) || outOfRounds
       if (reachMaxLayer)
-        println(s"[${getNowTime()}] " +
+        println(s"[${getNowTime}] " +
           s"[Result][Reach Max Layer] max_layer_num=${layer_id}, " +
           s"accuracy_train=${layer_train_metric}, accuracy_test=${layer_test_metric}")
       layer_id += 1

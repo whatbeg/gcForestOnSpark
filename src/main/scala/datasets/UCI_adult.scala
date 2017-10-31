@@ -11,10 +11,19 @@ import org.apache.spark.sql.types._
 
 
 class UCI_adult extends BaseDatasets {
+  /**
+    * Load UCI ADULT data, by sparkSession, phase(or file path) and cate_as_onehot
+    *
+    * @param spark SparkSession to load
+    * @param phase which kind of data to load, "train" or "test", or provide file path directly
+    * @param cate_as_onehot convert categorical data to one-hot format
+    * @return loaded DataFrame
+    */
   def load_data(spark: SparkSession, phase: String, cate_as_onehot: Int): DataFrame = {
     val data_path =
       if (phase == "train") "data/uci_adult/sample_adult.data"
-      else "data/uci_adult/sample_adult.test"
+      else if (phase == "test") "data/uci_adult/sample_adult.test"
+      else phase
 
     val raw = spark.read.text(data_path)
 

@@ -3,33 +3,37 @@
  */
 package org.apache.spark.ml.classification
 
+import java.io.File
+
+import datasets.UCI_adult
 import org.apache.spark.ml.Utils.SparkUnitTest
 import org.apache.spark.ml.evaluation.Evaluator
-import org.apache.spark.ml.linalg.DenseVector
+
+import scala.util.Random
+
 
 class RandomForestClassifierSuite extends SparkUnitTest {
   test("Random Forest is really Random") {
-    val dataset = spark.createDataFrame(Seq(
-      (0L, 0.0, new DenseVector(Array(0.6, 0.4))),
-      (2L, 1.0, new DenseVector(Array(0.3, 0.7))),
-      (1L, 1.0, new DenseVector(Array(0.8, 0.2))),
-      (3L, 0.0, new DenseVector(Array(0.23, 0.77)))
-    )).toDF("instance", "label", "features")
-    val testingDataset = spark.createDataFrame(Seq(
-      (0L, 1.0, new DenseVector(Array(0.2, 0.8))),
-      (1L, 0.0, new DenseVector(Array(0.7, 0.3)))
-    )).toDF("instance", "label", "features")
-    val rf = new RandomForestClassifier()
-      .setNumTrees(10)
-      .setMaxBins(32)
-      .setMaxDepth(10)
-      .setMinInstancesPerNode(1)
-      .setFeatureSubsetStrategy("sqrt")
-    val model = rf.fit(dataset)
-    val test_result = model.transform(testingDataset)
-      .drop("features").drop("rawPrediction").drop("prediction")
-      .withColumnRenamed("probability", "features")
-    val acc = Evaluator.evaluate(test_result)
-    println(acc)
+    val resource = getClass.getClassLoader.getResource("test-data")
+    val dataPrefix = resource.getPath + File.separator
+    val training = new UCI_adult().load_data(spark, dataPrefix + "sample_adult.data", 1)
+    val testing = new UCI_adult().load_data(spark, dataPrefix + "sample_adult.test", 1)
+    val acc_list = Range(0, 4).map { r =>
+      val rf = new RandomForestClassifier()
+        .setNumTrees(1)
+        .setMaxBins(32)
+        .setMaxDepth(30)
+        .setMinInstancesPerNode(1)
+        .setFeatureSubsetStrategy("sqrt")
+        .setSeed(Random.nextInt() + r)
+      val model = rf.fit(training)
+      val test_result = model.transform(testing)
+        .drop("features").drop("rawPrediction").drop("prediction")
+        .withColumnRenamed("probability", "features")
+      val acc = Evaluator.evaluate(test_result)
+      println(acc)
+      acc.getAccuracy
+    }
+    assert(acc_list.distinct.length == acc_list.length)
   }
 }
