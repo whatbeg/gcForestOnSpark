@@ -14,9 +14,12 @@ object GCForestSequence {
     val output = "data/uci_adult/model"
 
     val spark = SparkSession.builder()
-      .appName(this.getClass.getSimpleName).config("spark.executor.memory", "3g")
+      .appName(this.getClass.getSimpleName)
+      .config("spark.executor.memory", "3g")
       .config("spark.driver.memory", "3g")
-      //.config("spark.sql.shuffle.partitions", "8")
+      .config("spark.sql.shuffle.partitions", "8")
+//      .config("spark.default.parallelism", "8")
+//      .config("spark.storage.memoryFraction", "0.4")
       .master("local[*]").getOrCreate()
 
     spark.sparkContext.setLogLevel("ERROR")

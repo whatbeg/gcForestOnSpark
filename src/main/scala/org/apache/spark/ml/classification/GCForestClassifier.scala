@@ -77,6 +77,7 @@ class GCForestClassifier(override val uid: String)
     sparkSession.createDataFrame(windowInstances, newSchema)
 
   }
+
   /**
     * Scan image-style data
     * @param dataset raw input features
@@ -196,11 +197,12 @@ class GCForestClassifier(override val uid: String)
   (DataFrame, DataFrame, Metric, Metric, RandomForestCARTModel) = {
     val schema = training.schema
     val sparkSession = training.sparkSession
-    var out_train: DataFrame = null
-    var out_test: DataFrame = null
+    var out_train: DataFrame = null // closure need
+    var out_test: DataFrame = null // closure need
 
     if (testing != null) require(training.schema.equals(testing.schema))
-    val testingDataset = if (testing == null) null else testing.toDF
+    val testingDataset = if (testing == null) null
+        else testing.toDF.persist(StorageLevel.MEMORY_ONLY_SER) // closure need
     val test_partition = math.max(testing.rdd.getNumPartitions,
        sparkSession.sparkContext.defaultParallelism)
 
@@ -222,7 +224,7 @@ class GCForestClassifier(override val uid: String)
         if (!isScan) {
           val val_acc = Evaluator.evaluate(val_result)
           train_metric += val_acc
-          println(s"[${getNowTime}] $message 3_folds.train_$splitIndex = $val_acc")
+          println(s"[$getNowTime] $message ${$(numFolds)}_folds.train_$splitIndex = $val_acc")
         }
         if (testing != null) {
           val test_result = model.transform(testingDataset)
@@ -340,7 +342,7 @@ class GCForestClassifier(override val uid: String)
     }
   }
 
-  private[spark] def getNowTime = dateFormat.format(new Date())
+  private val getNowTime = dateFormat.format(new Date())
 
   /**
     *  Multi-Grained Scanning
@@ -403,7 +405,7 @@ class GCForestClassifier(override val uid: String)
 
     if ($(multiScanWindow).length == 0)
       scanFeature = dataset.toDF
-    // scanFeature: (instanceId, label, feature)
+    // scanFeature: (instanceId, label, features)
     println(s"[${getNowTime}] Multi Grained Scanning finished!")
     (scanFeature, mgsModels.toArray)
   }
@@ -428,7 +430,7 @@ class GCForestClassifier(override val uid: String)
     scanFeature_train.cache()
     if (testset != null) scanFeature_test.cache()
 
-    println(s"[${getNowTime}] Cascade Forest begin!")
+    println(s"[$getNowTime] Cascade Forest begin!")
     val sparkSession = scanFeature_train.sparkSession
     val sc = sparkSession.sparkContext
     var lastPrediction: DataFrame = null
@@ -445,7 +447,9 @@ class GCForestClassifier(override val uid: String)
     val numPartitions_test = math.max(scanFeature_test.rdd.getNumPartitions,
       sc.defaultParallelism)
     while (!reachMaxLayer) {
-      println(s"[${getNowTime}] Training Cascade Forest Layer ${layer_id}")
+
+      println(s"[$getNowTime] Training Cascade Forest Layer $layer_id")
+
       val ensembleRandomForest = Array[RandomForestClassifier](
         genRFClassifier("rfc", $(cascadeForestTreeNum), $(cascadeForestMinInstancesPerNode)),
         genRFClassifier("rfc", $(cascadeForestTreeNum), $(cascadeForestMinInstancesPerNode)),
@@ -456,29 +460,33 @@ class GCForestClassifier(override val uid: String)
         genRFClassifier("crfc", $(cascadeForestTreeNum), $(cascadeForestMinInstancesPerNode)),
         genRFClassifier("crfc", $(cascadeForestTreeNum), $(cascadeForestMinInstancesPerNode))
       )
-
+      // scanFeatures_*: (instanceId, label, features)
       val training = mergeFeatureAndPredict(scanFeature_train, lastPrediction)
         .repartition(numPartitions_train).cache()
+      scanFeature_train.show(5)
+      if (lastPrediction != null) lastPrediction.show(5)
+      training.show(5)
       val testing = mergeFeatureAndPredict(scanFeature_test, lastPrediction_test)
         .repartition(numPartitions_test).cache()
-      val features_dim = training.first().mkString.split(",").length
-      println(s"[${getNowTime}] Training Set = ($n_train, $features_dim), " +
+      // val features_dim = training.first().mkString.split(",").length
+      val features_dim = if (layer_id == 1) 113 else 129
+      println(s"[$getNowTime] Training Set = ($n_train, $features_dim), " +
         s"Testing Set = ($n_test, $features_dim)")
 
-      var ensemblePredict: DataFrame = null
-      var ensemblePredict_test: DataFrame = null
-      var layer_train_metric: Accuracy = new Accuracy(0, 0)
-      var layer_test_metric: Accuracy = new Accuracy(0, 0)
-      println(s"[${getNowTime}] Forests fitting and transforming ......")
-      erfModels += ensembleRandomForest.indices.map { it =>
-        val transformed = featureTransform(training, testing, ensembleRandomForest(it),
+      var ensemblePredict: DataFrame = null  // closure need
+      var ensemblePredict_test: DataFrame = null  // closure need
+      var layer_train_metric: Accuracy = new Accuracy(0, 0)  // closure need
+      var layer_test_metric: Accuracy = new Accuracy(0, 0)  // closure need
+      println(s"[$getNowTime] Forests fitting and transforming ......")
+      erfModels += ensembleRandomForest.zipWithIndex.map { case (rf, it) =>
+        val transformed = featureTransform(training, testing, rf,
           false, s"layer [$layer_id] - estimator [$it]")
         val predict = transformed._1
           .withColumn($(forestNumCol), lit(it))
-          .select($(instanceCol), $(labelCol), $(featuresCol), $(forestNumCol))
+          .select($(instanceCol), $(featuresCol), $(forestNumCol))
         val predict_test = transformed._2
           .withColumn($(forestNumCol), lit(it))
-          .select($(instanceCol), $(labelCol), $(featuresCol), $(forestNumCol))
+          .select($(instanceCol), $(featuresCol), $(forestNumCol))
         ensemblePredict =
         if (ensemblePredict == null) predict else ensemblePredict.union(predict)
         ensemblePredict_test =
@@ -493,21 +501,23 @@ class GCForestClassifier(override val uid: String)
 //        predict.unpersist()
 //        predict_test.unpersist()
         transformed._5
-      }.toArray
-      println(s"[${getNowTime}] [Layer Summary] layer [$layer_id] - " +
+      }
+      println(s"[$getNowTime] [Layer Summary] layer [$layer_id] - " +
         s"train.classifier.average = ${layer_train_metric.div(8d)}")
-      println(s"[${getNowTime}] [Layer Summary] layer [$layer_id] - " +
+      println(s"[$getNowTime] [Layer Summary] layer [$layer_id] - " +
         s"test.classifier.average = ${layer_test_metric.div(8d)}")
-      println(s"[${getNowTime}] Forests fitting and transforming finished!")
+      println(s"[$getNowTime] Forests fitting and transforming finished!")
 
       val schema = new StructType()
         .add(StructField($(instanceCol), LongType))
         .add(StructField($(featuresCol), new VectorUDT))
 
-      println(s"[${getNowTime}] Getting prediction RDD ......")
+      println(s"[$getNowTime] Getting prediction RDD ......")
       val predictRDDs =
         Array(ensemblePredict, ensemblePredict_test).zipWithIndex.map { case (predict, idx) =>
+          predict.show(5)
         val grouped = predict.rdd.groupBy(_.getAs[Long]($(instanceCol)))
+          println(s"grouped $idx partition: ${grouped.getNumPartitions}")
         val predictRDD = grouped.map { group =>
           val instanceId = group._1
           val rows = group._2
@@ -523,10 +533,21 @@ class GCForestClassifier(override val uid: String)
 //      ensemblePredict.unpersist()
 //      ensemblePredict_test.unpersist()
       //predictRDDs.foreach(r => r.persist(StorageLevel.MEMORY_ONLY_SER))
-      println(s"[${getNowTime}] Get prediction RDD finished! Layer $layer_id training finished!")
+      println(s"[$getNowTime] Get prediction RDD finished! Layer $layer_id training finished!")
       val opt_layer_id_train = acc_list(0).zipWithIndex.maxBy(_._1)._2
       val opt_layer_id_test = acc_list(1).zipWithIndex.maxBy(_._1)._2
-
+      if ($(earlyStopByTest)) {
+        if (opt_layer_id_test == layer_id)
+          println(s"[$getNowTime] [Result] [Reach Max Layer] max_layer_num = $layer_id " +
+            s"accuracy_train=${acc_list(0)(opt_layer_id_train)} " +
+            s"accuracy_test=${acc_list(1)(opt_layer_id_test)}")
+      }
+      else {
+        if (opt_layer_id_train == layer_id)
+          println(s"[$getNowTime] [Result] [Reach Max Layer] max_layer_num = $layer_id " +
+            s"accuracy_train = ${acc_list(0)(opt_layer_id_train)} " +
+            s"accuracy_test = ${acc_list(1)(opt_layer_id_test)}")
+      }
       lastPrediction = sparkSession.createDataFrame(predictRDDs(0), schema).cache()
       lastPrediction_test = sparkSession.createDataFrame(predictRDDs(1), schema).cache()
       val outOfRounds =
@@ -548,7 +569,7 @@ class GCForestClassifier(override val uid: String)
 
     scanFeature_train.unpersist
     if (testset != null) scanFeature_test.unpersist
-    // logger.info("Cascade Forest finished!")
+    println(s"[$getNowTime] Cascade Forest Training Finished!")
     new GCForestClassificationModel(mgsModels, erfModels.toArray, numClasses)
   }
 
