@@ -342,7 +342,7 @@ class GCForestClassifier(override val uid: String)
     }
   }
 
-  private val getNowTime = dateFormat.format(new Date())
+  private def getNowTime = dateFormat.format(new Date())
 
   /**
     *  Multi-Grained Scanning
@@ -463,9 +463,6 @@ class GCForestClassifier(override val uid: String)
       // scanFeatures_*: (instanceId, label, features)
       val training = mergeFeatureAndPredict(scanFeature_train, lastPrediction)
         .repartition(numPartitions_train).cache()
-      scanFeature_train.show(5)
-      if (lastPrediction != null) lastPrediction.show(5)
-      training.show(5)
       val testing = mergeFeatureAndPredict(scanFeature_test, lastPrediction_test)
         .repartition(numPartitions_test).cache()
       // val features_dim = training.first().mkString.split(",").length
@@ -515,9 +512,8 @@ class GCForestClassifier(override val uid: String)
       println(s"[$getNowTime] Getting prediction RDD ......")
       val predictRDDs =
         Array(ensemblePredict, ensemblePredict_test).zipWithIndex.map { case (predict, idx) =>
-          predict.show(5)
         val grouped = predict.rdd.groupBy(_.getAs[Long]($(instanceCol)))
-          println(s"grouped $idx partition: ${grouped.getNumPartitions}")
+//          println(s"grouped $idx partition: ${grouped.getNumPartitions}")
         val predictRDD = grouped.map { group =>
           val instanceId = group._1
           val rows = group._2
@@ -597,7 +593,7 @@ class GCForestClassifier(override val uid: String)
 }
 
 
-class GCForestClassificationModel private[ml] (
+private[ml] class GCForestClassificationModel (
    override val uid: String,
    private val scanModel: Array[MultiGrainedScanModel],
    private val cascadeForest: Array[Array[RandomForestCARTModel]],
@@ -703,27 +699,7 @@ class GCForestClassificationModel private[ml] (
     new GCForestClassificationModel.GCForestClassificationModelWriter(this)
 }
 
-/**
-  * The metadata of GCForestClassificationModel
-  *
-  * root                  // the root directory of GCForestClassificationModel
-  *  |--metadata          // metadata of GCForestClassificationModel
-  *  |--scan              // Multi-Grained Scanning
-  *  |   |--0
-  *  |   |  |--metadata
-  *  |   |  |--rfc
-  *  |   |  |--crfc
-  *  |   |--1
-  *  |   |--2
-  *  |--cascade           // Cascade Forest
-  *  |   |--0             // the level of Cascade Forest
-  *  |   |  |--0          // the number of Forest
-  *  |   |  |--1
-  *  |   |  |--2
-  *  |   |  |--3
-  *  |   |--1
-  *  |   |--2
-  */
+
 object GCForestClassificationModel extends MLReadable[GCForestClassificationModel] {
   override def read: MLReader[GCForestClassificationModel] = new GCForestClassificationModelReader
 
