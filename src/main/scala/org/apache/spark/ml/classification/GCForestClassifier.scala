@@ -134,55 +134,6 @@ class GCForestClassifier(override val uid: String)
   }
 
   /**
-    * Use cross-validation to build k classes distribution scan features
-    * @param training training dataset
-    * @param testing testing dataset
-    * @param rfc random forest classifier
-    * @return k classes distribution features and random forest model
-    */
-  def scanFeatureTransform(training: Dataset[_],
-                           testing: Dataset[_],
-                           rfc: RandomForestClassifier):
-  (DataFrame, DataFrame, RandomForestCARTModel) = {
-    val schema = training.schema
-    val sparkSession = training.sparkSession
-    var out_train: DataFrame = null
-    var out_test: DataFrame = null
-
-    if (testing != null) require(training.schema.equals(testing.schema))
-    val testingDataset = if (testing == null) null else testing.toDF
-
-    // cross-validation for k classes distribution features
-    val splits = MLUtils.kFold(training.toDF.rdd, $(numFolds), $(seed))
-    splits.zipWithIndex.foreach {
-      case ((t, v), splitIndex) =>
-        val trainingDataset = sparkSession.createDataFrame(t, schema).cache
-        val validationDataset = sparkSession.createDataFrame(v, schema).cache
-        val model = rfc.fit(trainingDataset)
-
-        trainingDataset.unpersist()
-        // rawPrediction == probabilityCol
-        val val_result = model.transform(validationDataset)
-          .drop($(featuresCol)).drop($(rawPredictionCol)).drop($(predictionCol))
-          .withColumnRenamed($(probabilityCol), $(featuresCol))
-        out_train = if (out_train == null) val_result else out_train.union(val_result)
-        if (testing != null) {
-          val test_result = model.transform(testingDataset)
-            .drop($(featuresCol)).drop($(rawPredictionCol)).drop($(predictionCol))
-            .withColumnRenamed($(probabilityCol), $(featuresCol)+s"$splitIndex")
-          out_test = if (out_test == null) test_result
-          else out_test.join(test_result, Seq($(instanceCol), $(labelCol)))
-        }
-        validationDataset.unpersist()
-    }
-    if (testing != null) testingDataset.unpersist()
-    out_test = out_test.withColumn($(featuresCol),
-      UDF.mergeVectorForKfold(3)(Range(0, $(numFolds)).map(k => col($(featuresCol) + s"$k")): _*))
-      .select($(instanceCol), $(labelCol), $(featuresCol))
-    (out_train, out_test, rfc.fit(training))
-  }
-
-  /**
     * Use cross-validation to build k classes distribution features
     * @param training training dataset
     * @param testing testing dataset
@@ -533,16 +484,16 @@ class GCForestClassifier(override val uid: String)
       val opt_layer_id_train = acc_list(0).zipWithIndex.maxBy(_._1)._2
       val opt_layer_id_test = acc_list(1).zipWithIndex.maxBy(_._1)._2
       if ($(earlyStopByTest)) {
-        if (opt_layer_id_test == layer_id)
-          println(s"[$getNowTime] [Result] [Reach Max Layer] max_layer_num = $layer_id " +
-            s"accuracy_train=${acc_list(0)(opt_layer_id_train)} " +
-            s"accuracy_test=${acc_list(1)(opt_layer_id_test)}")
+        if (opt_layer_id_test + 1 == layer_id)
+          println(s"[$getNowTime] [Result] [Optimal Layer] max_layer_num = $layer_id " +
+            s"accuracy_train=${acc_list(0)(opt_layer_id_train)*100}% " +
+            s"accuracy_test=${acc_list(1)(opt_layer_id_test)*100}%")
       }
       else {
-        if (opt_layer_id_train == layer_id)
-          println(s"[$getNowTime] [Result] [Reach Max Layer] max_layer_num = $layer_id " +
-            s"accuracy_train = ${acc_list(0)(opt_layer_id_train)} " +
-            s"accuracy_test = ${acc_list(1)(opt_layer_id_test)}")
+        if (opt_layer_id_train + 1 == layer_id)
+          println(s"[$getNowTime] [Result] [Optimal Layer] max_layer_num = $layer_id " +
+            s"accuracy_train = ${acc_list(0)(opt_layer_id_train)*100}% " +
+            s"accuracy_test = ${acc_list(1)(opt_layer_id_test)*100}%")
       }
       lastPrediction = sparkSession.createDataFrame(predictRDDs(0), schema).cache()
       lastPrediction_test = sparkSession.createDataFrame(predictRDDs(1), schema).cache()
@@ -591,6 +542,58 @@ class GCForestClassifier(override val uid: String)
 
   override def copy(extra: ParamMap): GCForestClassifier = defaultCopy(extra)
 }
+
+//object GCForestClassifier extends DefaultParamsReadable[GCForestClassifier]
+//  with DefaultParamsWritable with HasPredictionCol with HasFeaturesCol with GCForestParams {
+//  /**
+//    * Use cross-validation to build k classes distribution scan features
+//    * @param training training dataset
+//    * @param testing testing dataset
+//    * @param rfc random forest classifier
+//    * @return k classes distribution features and random forest model
+//    */
+//  def scanFeatureTransform(training: Dataset[_],
+//                           testing: Dataset[_],
+//                           rfc: RandomForestClassifier):
+//  (DataFrame, DataFrame, RandomForestCARTModel) = {
+//    val schema = training.schema
+//    val sparkSession = training.sparkSession
+//    var out_train: DataFrame = null
+//    var out_test: DataFrame = null
+//
+//    if (testing != null) require(training.schema.equals(testing.schema))
+//    val testingDataset = if (testing == null) null else testing.toDF
+//
+//    // cross-validation for k classes distribution features
+//    val splits = MLUtils.kFold(training.toDF.rdd, $(numFolds), $(seed))
+//    splits.zipWithIndex.foreach {
+//      case ((t, v), splitIndex) =>
+//        val trainingDataset = sparkSession.createDataFrame(t, schema).cache
+//        val validationDataset = sparkSession.createDataFrame(v, schema).cache
+//        val model = rfc.fit(trainingDataset)
+//
+//        trainingDataset.unpersist()
+//        // rawPrediction == probabilityCol
+//        val val_result = model.transform(validationDataset)
+//          .drop($(featuresCol)).drop($(rawPredictionCol)).drop($(predictionCol))
+//          .withColumnRenamed($(probabilityCol), $(featuresCol))
+//        out_train = if (out_train == null) val_result else out_train.union(val_result)
+//        if (testing != null) {
+//          val test_result = model.transform(testingDataset)
+//            .drop($(featuresCol)).drop($(rawPredictionCol)).drop($(predictionCol))
+//            .withColumnRenamed($(probabilityCol), $(featuresCol)+s"$splitIndex")
+//          out_test = if (out_test == null) test_result
+//          else out_test.join(test_result, Seq($(instanceCol), $(labelCol)))
+//        }
+//        validationDataset.unpersist()
+//    }
+//    if (testing != null) testingDataset.unpersist()
+//    out_test = out_test.withColumn($(featuresCol),
+//      UDF.mergeVectorForKfold(3)(Range(0, $(numFolds)).map(k => col($(featuresCol) + s"$k")): _*))
+//      .select($(instanceCol), $(labelCol), $(featuresCol))
+//    (out_train, out_test, rfc.fit(training))
+//  }
+//}
 
 
 private[ml] class GCForestClassificationModel (
