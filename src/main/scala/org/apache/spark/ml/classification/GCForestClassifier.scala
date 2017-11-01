@@ -152,8 +152,8 @@ class GCForestClassifier(override val uid: String)
     var out_test: DataFrame = null // closure need
 
     if (testing != null) require(training.schema.equals(testing.schema))
-    val testingDataset = if (testing == null) null
-        else testing.toDF.persist(StorageLevel.MEMORY_ONLY_SER) // closure need
+    val testingDataset = sparkSession.sparkContext.broadcast(if (testing == null) null
+        else testing.toDF.persist(StorageLevel.MEMORY_ONLY_SER)) // closure need
     val test_partition = math.max(testing.rdd.getNumPartitions,
        sparkSession.sparkContext.defaultParallelism)
 
@@ -178,7 +178,7 @@ class GCForestClassifier(override val uid: String)
           println(s"[$getNowTime] $message ${$(numFolds)}_folds.train_$splitIndex = $val_acc")
         }
         if (testing != null) {
-          val test_result = model.transform(testingDataset)
+          val test_result = model.transform(testingDataset.value)
             .drop($(featuresCol)).drop($(rawPredictionCol)).drop($(predictionCol))
             .withColumnRenamed($(probabilityCol), $(featuresCol)+s"$splitIndex")
           out_test = if (out_test == null) test_result
@@ -303,7 +303,7 @@ class GCForestClassifier(override val uid: String)
     var scanFeature: DataFrame = null
     val mgsModels = ArrayBuffer[MultiGrainedScanModel]()
 
-    println(s"[${getNowTime}] Multi Grained Scanning begin!")
+    println(s"[$getNowTime] Multi Grained Scanning begin!")
     if ($(dataStyle) == "image" && $(multiScanWindow).length > 0) {
       require($(multiScanWindow).length % 2 == 0,
         "The multiScanWindow must has the even number for image-style data")
@@ -357,7 +357,7 @@ class GCForestClassifier(override val uid: String)
     if ($(multiScanWindow).length == 0)
       scanFeature = dataset.toDF
     // scanFeature: (instanceId, label, features)
-    println(s"[${getNowTime}] Multi Grained Scanning finished!")
+    println(s"[$getNowTime] Multi Grained Scanning finished!")
     (scanFeature, mgsModels.toArray)
   }
 
@@ -412,10 +412,10 @@ class GCForestClassifier(override val uid: String)
         genRFClassifier("crfc", $(cascadeForestTreeNum), $(cascadeForestMinInstancesPerNode))
       )
       // scanFeatures_*: (instanceId, label, features)
-      val training = mergeFeatureAndPredict(scanFeature_train, lastPrediction)
-        .repartition(numPartitions_train).cache()
-      val testing = mergeFeatureAndPredict(scanFeature_test, lastPrediction_test)
-        .repartition(numPartitions_test).cache()
+      val training = sc.broadcast(mergeFeatureAndPredict(scanFeature_train, lastPrediction)
+        .repartition(numPartitions_train))
+      val testing = sc.broadcast(mergeFeatureAndPredict(scanFeature_test, lastPrediction_test)
+        .repartition(numPartitions_test))
       // val features_dim = training.first().mkString.split(",").length
       val features_dim = if (layer_id == 1) 113 else 129
       println(s"[$getNowTime] Training Set = ($n_train, $features_dim), " +
@@ -427,7 +427,7 @@ class GCForestClassifier(override val uid: String)
       var layer_test_metric: Accuracy = new Accuracy(0, 0)  // closure need
       println(s"[$getNowTime] Forests fitting and transforming ......")
       erfModels += ensembleRandomForest.zipWithIndex.map { case (rf, it) =>
-        val transformed = featureTransform(training, testing, rf,
+        val transformed = featureTransform(training.value, testing.value, rf,
           false, s"layer [$layer_id] - estimator [$it]")
         val predict = transformed._1
           .withColumn($(forestNumCol), lit(it))
@@ -441,10 +441,10 @@ class GCForestClassifier(override val uid: String)
         if (ensemblePredict_test == null) predict_test else ensemblePredict_test
           .union(predict_test)
         layer_train_metric = layer_train_metric + transformed._3
-        println(s"[${getNowTime}] [Estimator Summary] " +
+        println(s"[$getNowTime] [Estimator Summary] " +
           s"layer [$layer_id] - estimator [$it] Train.predict = ${transformed._3}")
         layer_test_metric = layer_test_metric + transformed._4
-        println(s"[${getNowTime}] [Estimator Summary] " +
+        println(s"[$getNowTime] [Estimator Summary] " +
           s"layer [$layer_id] - estimator [$it]  Test.predict = ${transformed._4}")
 //        predict.unpersist()
 //        predict_test.unpersist()
