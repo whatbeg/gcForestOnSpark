@@ -12,7 +12,8 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
 
 
-class CompletelyRandomForestClassifier(override val uid: String) extends RandomForestClassifier {
+class CompletelyRandomForestClassifier(override val uid: String)
+  extends RandomForestCARTClassifier {
 
   def this() = this(Identifiable.randomUID("crfc"))
 

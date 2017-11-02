@@ -3,9 +3,8 @@
  */
 package org.apache.spark.ml.evaluation
 
-import org.apache.spark.sql.{DataFrame, Dataset, Row}
+import org.apache.spark.sql.{Dataset, Row}
 import org.apache.spark.ml.linalg.Vector
-import org.apache.spark.sql.types.{LongType, StructField}
 
 
 abstract class Evaluator {

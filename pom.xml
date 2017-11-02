@@ -15,6 +15,7 @@
         <scalatest.artifactId>2.11</scalatest.artifactId>
         <scalatest.version>2.2.6</scalatest.version>
         <spark.version>2.1.0</spark.version>
+        <maven-assembly-plugin.version>2.4</maven-assembly-plugin.version>
     </properties>
 
     <repositories>

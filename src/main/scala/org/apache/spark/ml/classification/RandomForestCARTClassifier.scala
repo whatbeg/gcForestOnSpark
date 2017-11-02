@@ -22,8 +22,8 @@ import org.apache.spark.sql.{DataFrame, Dataset}
 import org.apache.spark.sql.functions._
 
 
-class RandomForestClassifier(override val uid: String)
-  extends ProbabilisticClassifier[Vector, RandomForestClassifier, RandomForestCARTModel]
+class RandomForestCARTClassifier(override val uid: String)
+  extends ProbabilisticClassifier[Vector, RandomForestCARTClassifier, RandomForestCARTModel]
     with RandomForestClassifierParams with DefaultParamsWritable {
 
   @Since("1.4.0")
@@ -123,11 +123,11 @@ class RandomForestClassifier(override val uid: String)
   }
 
   @Since("1.4.1")
-  override def copy(extra: ParamMap): RandomForestClassifier = defaultCopy(extra)
+  override def copy(extra: ParamMap): RandomForestCARTClassifier = defaultCopy(extra)
 }
 
 @Since("1.4.0")
-object RandomForestClassifier extends DefaultParamsReadable[RandomForestClassifier] {
+object RandomForestCARTClassifier extends DefaultParamsReadable[RandomForestCARTClassifier] {
   /** Accessor for supported impurity settings: entropy, gini */
   @Since("1.4.0")
   final val supportedImpurities: Array[String] = TreeClassifierParams.supportedImpurities
@@ -138,7 +138,7 @@ object RandomForestClassifier extends DefaultParamsReadable[RandomForestClassifi
   RandomForestParams.supportedFeatureSubsetStrategies
 
   @Since("2.0.0")
-  override def load(path: String): RandomForestClassifier = super.load(path)
+  override def load(path: String): RandomForestCARTClassifier = super.load(path)
 }
 
 /**
@@ -158,7 +158,7 @@ class RandomForestCARTModel private[ml](@Since("1.5.0") override val uid: String
     with RandomForestClassifierParams with TreeEnsembleModel[DecisionTreeClassificationModel]
     with MLWritable with Serializable {
 
-  require(_trees.nonEmpty, "RandomForestClassificationModel requires at least 1 tree.")
+  require(_trees.nonEmpty, "RandomForestCARTModel requires at least 1 tree.")
 
   /**
     * Construct a random forest classification model, with all trees weighted equally.
@@ -214,7 +214,7 @@ class RandomForestCARTModel private[ml](@Since("1.5.0") override val uid: String
         ProbabilisticClassificationModel.normalizeToProbabilitiesInPlace(dv)
         dv
       case _: SparseVector =>
-        throw new RuntimeException("Unexpected error in RandomForestClassificationModel:" +
+        throw new RuntimeException("Unexpected error in RandomForestCARTModel:" +
           " raw2probabilityInPlace encountered SparseVector")
     }
   }
@@ -227,7 +227,7 @@ class RandomForestCARTModel private[ml](@Since("1.5.0") override val uid: String
 
   @Since("1.4.0")
   override def toString: String = {
-    s"RandomForestClassificationModel (uid=$uid) with $getNumTrees trees"
+    s"RandomForestCARTModel (uid=$uid) with $getNumTrees trees"
   }
 
   /**
@@ -299,7 +299,7 @@ object RandomForestCARTModel extends MLReadable[RandomForestCARTModel] {
           DefaultParamsReader.getAndSetParams(tree, treeMetadata)
           tree
       }
-      require(numTrees == trees.length, s"RandomForestClassificationModel.load expected $numTrees" +
+      require(numTrees == trees.length, s"RandomForestCARTModel.load expected $numTrees" +
         s" trees based on metadata but found ${trees.length} trees.")
 
       val model = new RandomForestCARTModel(metadata.uid, trees, numFeatures, numClasses)
@@ -310,12 +310,12 @@ object RandomForestCARTModel extends MLReadable[RandomForestCARTModel] {
 
   /** Convert a model from the old API */
   private[ml] def fromOld(oldModel: OldRandomForestModel,
-                          parent: RandomForestClassifier,
+                          parent: RandomForestCARTClassifier,
                           categoricalFeatures: Map[Int, Int],
                           numClasses: Int,
                           numFeatures: Int = -1): RandomForestCARTModel = {
     require(oldModel.algo == OldAlgo.Classification, "Cannot convert RandomForestModel" +
-      s" with algo=${oldModel.algo} (old API) to RandomForestClassificationModel (new API).")
+      s" with algo=${oldModel.algo} (old API) to RandomForestCARTModel (new API).")
     val newTrees = oldModel.trees.map { tree =>
       // parent for each tree is null since there is no good way to set this.
       DecisionTreeClassificationModel.fromOld(tree, null, categoricalFeatures)

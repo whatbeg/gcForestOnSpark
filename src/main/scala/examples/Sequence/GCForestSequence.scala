@@ -15,12 +15,14 @@ object GCForestSequence {
 
     val spark = SparkSession.builder()
       .appName(this.getClass.getSimpleName)
-      .config("spark.executor.memory", "3g")
-      .config("spark.driver.memory", "3g")
-      .config("spark.sql.shuffle.partitions", "8")
+      .config("spark.executor.memory", "2g")
+      .config("spark.driver.memory", "2g")
+//      .config("spark.sql.shuffle.partitions", "8")
 //      .config("spark.default.parallelism", "8")
 //      .config("spark.storage.memoryFraction", "0.4")
-      .master("local[*]").getOrCreate()
+//      .master("local-cluster[2,4,2048]")
+      .master("local[8]")
+      .getOrCreate()
 
     spark.sparkContext.setLogLevel("ERROR")
 
