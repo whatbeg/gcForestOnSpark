@@ -32,14 +32,14 @@ object GCForestSequence {
 
     val gcForest = new GCForestClassifier()
       .setDataSize(Array(113))
-      .setDataStyle("sequence")
+      .setDataStyle("Seq")
       .setMultiScanWindow(Array())
       .setCascadeForestTreeNum(500)
       .setScanForestTreeNum(1)
       .setMaxIteration(2)
       .setEarlyStoppingRounds(4)
 
-    val model = gcForest.fit(train, test)
+    val model = gcForest.train(train, test)
     // model.save(output)
   }
 }

@@ -4,26 +4,20 @@
 
 package org.apache.spark.ml.classification
 
-import java.text.SimpleDateFormat
-import java.util.Date
-
 import org.apache.hadoop.fs.Path
-import org.apache.spark.ml.Helper.{UserDefinedFunctions => UDF}
-import org.apache.spark.ml.evaluation.{Accuracy, Evaluator, Metric}
 import org.json4s.{DefaultFormats, JObject}
 import org.json4s.JsonDSL._
 import org.apache.spark.ml.linalg._
 import org.apache.spark.ml.param._
 import org.apache.spark.ml.tree.GCForestParams
+import org.apache.spark.ml.tree.configuration.GCForestStrategy
+import org.apache.spark.ml.tree.impl.GCForestImpl
 import org.apache.spark.ml.util._
-import org.apache.spark.mllib.util.MLUtils
-import org.apache.spark.sql.{DataFrame, Dataset, Row}
+import org.apache.spark.sql.{DataFrame, Dataset}
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.{DoubleType, LongType, StructField, StructType}
-import org.apache.spark.storage.StorageLevel
+import org.apache.spark.sql.types.DoubleType
 
 import scala.collection.mutable.ArrayBuffer
-import scala.util.Random
 
 
 class GCForestClassifier(override val uid: String)
@@ -31,505 +25,32 @@ class GCForestClassifier(override val uid: String)
   with DefaultParamsWritable with GCForestParams {
 
   def this() = this(Identifiable.randomUID("gcf"))
-  val dateFormat: SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS")
 
-  /**
-    * Scan Sequence Data
-    * @param dataset raw input label and features
-    * @param windowSize the window size
-    * @return
-    */
-  def extractSequenceRDD(dataset: Dataset[_], windowSize: Int): DataFrame = {
-    require(getDataSize.length == 1, "You must set Sequence length by setDataSize")
-    val sparkSession = dataset.sparkSession
-    val schema = dataset.schema
+  override def setNumClasses(value: Int): this.type = set(classNum, value)
 
-    val seqSize = getDataSize(0)
-    require(seqSize >= windowSize, "Window Size must be smaller than Sequence Length")
+  override def setDataSize(value: Array[Int]): this.type = set(dataSize, value)
 
-    val vector2Dense = udf { (features: Vector, w: Int) =>
-      new DenseVector(features.toArray)
-    }
-    val windowInstances = dataset.withColumn($(featuresCol), vector2Dense(col($(featuresCol))))
-      .rdd.flatMap { row =>
-        val rows = Array.fill[Row](seqSize - windowSize + 1)(null)
-        val featureIdx = row.fieldIndex($(featuresCol))
-        val vector = row.getAs[Vector]($(featuresCol))
-        val features = Array.fill[Double](windowSize)(0d)
-        val newRow = ArrayBuffer[Any]() ++= row.toSeq
-        val windowNumIdx = newRow.length
-        newRow += 0
+  override def setDataStyle(value: String): this.type = set(dataStyle, value)
 
-        Range(0, seqSize - windowSize + 1).foreach { offset =>
-          Range(0, windowSize).foreach { x =>
-            features(x) = vector(x + offset)
-          }
-          val windowNum = offset
-          newRow(featureIdx) = new DenseVector(features)
-          newRow(windowNumIdx) = windowNum.toLong
-          rows(windowNum) = Row.fromSeq(newRow)
-        }
-        rows
-    }
+  override def setMultiScanWindow(value: Array[Int]): this.type = set(multiScanWindow, value)
 
-    val newSchema = schema
-      .add(StructField($(windowCol), LongType))
-    sparkSession.createDataFrame(windowInstances, newSchema)
+  override def setScanForestTreeNum(value: Int): this.type = set(scanForestTreeNum, value)
 
+  override def setCascadeForestTreeNum(value: Int): this.type = set(cascadeForestTreeNum, value)
+
+  override def setMaxIteration(value: Int): this.type = set(MaxIteration, value)
+
+  override def setEarlyStoppingRounds(value: Int): this.type = set(earlyStoppingRounds, value)
+
+  def getGCForestStrategy: GCForestStrategy = {
+    GCForestStrategy($(classNum), $(multiScanWindow), $(scanForestTreeNum),
+      $(cascadeForestTreeNum), $(scanForestMinInstancesPerNode),
+      $(cascadeForestMinInstancesPerNode), $(randomForestMaxBins), $(randomForestMaxDepth),
+      $(MaxIteration), $(numFolds), $(earlyStoppingRounds), $(earlyStopByTest), $(dataStyle),
+      $(dataSize), $(seed), $(windowCol), $(scanCol), $(forestIdCol))
   }
 
-  /**
-    * Scan image-style data
-    * @param dataset raw input features
-    * @param windowWidth the width of window
-    * @param windowHeight the height of window
-    * @return
-    */
-  def extractMatrixRDD(dataset: Dataset[_], windowWidth: Int, windowHeight: Int): DataFrame = {
-    require(getDataSize.length == 2, "You must set Image resolution by setDataSize")
-    val sparkSession = dataset.sparkSession
-    val schema = dataset.schema
-
-    val width = getDataSize(0)  // 10
-    val height = getDataSize(1)  // 10
-
-    require(width >= windowWidth, "The width of image must be greater than window's")
-    require(height >= windowHeight, "The height of image must be greater than window's")
-
-    val vector2Matrix = udf { (features: Vector, w: Int, h: Int) =>
-      new DenseMatrix(w, h, features.toArray)
-    }
-
-    val windowInstances = dataset.withColumn($(featuresCol),
-      vector2Matrix(col($(featuresCol)), lit(width), lit(height)))
-      .rdd.flatMap { row =>
-          val rows = Array.fill[Row]((width - windowWidth + 1) * (height - windowHeight + 1))(null)
-          val featureIdx = row.fieldIndex($(featuresCol))
-          val matrix = row.getAs[DenseMatrix]($(featuresCol))
-          val features = Array.fill[Double](windowWidth * windowHeight)(0d)
-          val newRow = ArrayBuffer[Any]() ++= row.toSeq
-          val windowNumIdx = newRow.length
-          newRow += 0
-
-          Range(0, width - windowWidth + 1).foreach { x_offset =>
-            Range(0, height - windowHeight + 1).foreach { y_offset =>
-              Range(0, windowWidth).foreach { x =>
-                Range(0, windowHeight).foreach { y =>
-                  features(x * windowWidth + y) = matrix(x + x_offset, y + y_offset)
-                }
-              }
-              val windowNum = x_offset * (width - windowWidth + 1) + y_offset
-              newRow(featureIdx) = new DenseVector(features)
-              newRow(windowNumIdx) = windowNum.toLong
-              rows(windowNum) = Row.fromSeq(newRow)
-            }
-          }
-          rows
-    }
-
-    val newSchema = schema
-      .add(StructField($(windowCol), LongType))
-
-    sparkSession.createDataFrame(windowInstances, newSchema)
-  }
-
-  /**
-    * Use cross-validation to build k classes distribution features
-    * @param training training dataset
-    * @param testing testing dataset
-    * @param rfc random forest classifier
-    * @return k classes distribution features and random forest model
-    */
-  def featureTransform(training: Dataset[_],
-                       testing: Dataset[_],
-                       rfc: RandomForestCARTClassifier,
-                       isScan: Boolean,
-                       message: String):
-  (DataFrame, DataFrame, Metric, Metric, RandomForestCARTModel) = {
-    val schema = training.schema
-    val sparkSession = training.sparkSession
-    var out_train: DataFrame = null // closure need
-    var out_test: DataFrame = null // closure need
-
-    if (testing != null) require(training.schema.equals(testing.schema))
-    val testingDataset = sparkSession.sparkContext.broadcast(if (testing == null) null
-        else testing.toDF.persist(StorageLevel.MEMORY_ONLY_SER)) // closure need
-    val test_partition = math.max(testing.rdd.getNumPartitions,
-       sparkSession.sparkContext.defaultParallelism)
-
-    // cross-validation for k classes distribution features
-    var train_metric = new Accuracy(0, 0)
-    val splits = MLUtils.kFold(training.toDF.rdd, $(numFolds), $(seed) * System.currentTimeMillis())
-    splits.zipWithIndex.foreach {
-      case ((t, v), splitIndex) =>
-        val trainingDataset = sparkSession.createDataFrame(t, schema)
-        val validationDataset = sparkSession.createDataFrame(v, schema)
-        val model = rfc.fit(trainingDataset)
-
-        trainingDataset.unpersist()
-        // rawPrediction == probabilityCol
-        val val_result = model.transform(validationDataset)
-          .drop($(featuresCol)).drop($(rawPredictionCol)).drop($(predictionCol))
-          .withColumnRenamed($(probabilityCol), $(featuresCol))
-        out_train = if (out_train == null) val_result else out_train.union(val_result)
-        if (!isScan) {
-          val val_acc = Evaluator.evaluate(val_result)
-          train_metric += val_acc
-          println(s"[$getNowTime] $message ${$(numFolds)}_folds.train_$splitIndex = $val_acc")
-        }
-        if (testing != null) {
-          val test_result = model.transform(testingDataset.value)
-            .drop($(featuresCol)).drop($(rawPredictionCol)).drop($(predictionCol))
-            .withColumnRenamed($(probabilityCol), $(featuresCol)+s"$splitIndex")
-          out_test = if (out_test == null) test_result
-                     else out_test.join(test_result, Seq($(instanceCol), $(labelCol)))
-        }
-        validationDataset.unpersist()
-    }
-    out_test = out_test.withColumn($(featuresCol),
-      UDF.mergeVectorForKfold(3)(Range(0, $(numFolds)).map(k => col($(featuresCol) + s"$k")): _*))
-      .select($(instanceCol), $(labelCol), $(featuresCol))
-      .repartition(test_partition)
-    val test_metric = if (!isScan) Evaluator.evaluate(out_test) else new Accuracy(0, 0)
-    (out_train, out_test, train_metric, test_metric, rfc.fit(training))
-  }
-
-  // create a random forest classifier by type
-  def genRFClassifier(rfType: String,
-                      treeNum: Int,
-                      minInstancePerNode: Int,
-                      num: Int): RandomForestCARTClassifier = {
-    val rf = rfType match {
-      case "rfc" => new RandomForestCARTClassifier()
-      case "crfc" => new CompletelyRandomForestClassifier()
-    }
-
-    rf.setNumTrees(treeNum)
-      .setMaxBins($(randomForestMaxBins))
-      .setMaxDepth($(randomForestMaxDepth))
-      .setMinInstancesPerNode(minInstancePerNode)
-      .setFeatureSubsetStrategy("sqrt")
-      .setSeed(System.currentTimeMillis() + num*123L + rfType.hashCode % num)
-  }
-
-  /**
-    * Concat multi-scan features
-    * @param dataset one of a window
-    * @param sets the others
-    * @return input for Cascade Forest
-    */
-  def concatenate(dataset: Dataset[_], sets: Dataset[_]*): DataFrame = {
-    val sparkSession = dataset.sparkSession
-    var unionSet = dataset.toDF
-    sets.foreach(ds => unionSet = unionSet.union(ds.toDF))
-
-    class Record(val instance: Long,    // instance id
-                 val label: Double,     // label
-                 val features: Vector,  // features
-                 val scanId: Int,       // the scan id for multi-scan
-                 val treeNum: Int,      // tree id
-                 val winId: Long) extends Serializable // window id
-
-    val concatData = unionSet.select(
-      $(instanceCol), $(labelCol),
-      $(featuresCol), $(scanCol),
-      $(forestNumCol), $(windowCol)).rdd.map {
-      row =>
-        val instance = row.getAs[Long]($(instanceCol))
-        val label = row.getAs[Double]($(labelCol))
-        val features = row.getAs[Vector]($(featuresCol))
-        val scanId = row.getAs[Int]($(scanCol))
-        val treeNum = row.getAs[Int]($(forestNumCol))
-        val winId = row.getAs[Long]($(windowCol))
-
-        new Record(instance, label, features, scanId, treeNum, winId)
-    }.groupBy(
-      record => record.instance
-    ).map { group =>
-      val instance = group._1
-      val records = group._2
-      val label = records.head.label
-
-      def recordCompare(left: Record, right: Record): Boolean = {
-        var code = left.scanId.compareTo(right.scanId)
-        if (code == 0) code = left.treeNum.compareTo(right.treeNum)
-        if (code == 0) code = left.winId.compareTo(right.winId)
-        code < 0
-      }
-
-      val features = new DenseVector(records.toSeq.sortWith(recordCompare)
-        .flatMap(_.features.toArray).toArray)
-      // features = [0, 0, ..., 0] (903 dim)
-      Row.fromSeq(Array[Any](instance, label, features))
-    }
-
-    val schema: StructType = StructType(Seq[StructField]())
-      .add(StructField($(instanceCol), LongType))
-      .add(StructField($(labelCol), DoubleType))
-      .add(StructField($(featuresCol), new VectorUDT))
-    sparkSession.createDataFrame(concatData, schema)
-  }
-
-  /**
-    * concat inputs of Cascade Forest with prediction
-    * @param feature input features
-    * @param predict prediction features
-    * @return
-    */
-  def mergeFeatureAndPredict(feature: Dataset[_], predict: Dataset[_]): DataFrame = {
-    val vectorMerge = udf { (v1: Vector, v2: Vector) =>
-      new DenseVector(v1.toArray.union(v2.toArray))
-    }
-
-    if (predict != null) {
-      feature.join(
-        // join (predict feature col to predictionCol)
-        predict.withColumnRenamed($(featuresCol), $(predictionCol)),
-        Seq($(instanceCol))  // join on instanceCol
-        // replace featureCol with featureCol + predictionCol
-      ).withColumn($(featuresCol), vectorMerge(col($(featuresCol)), col($(predictionCol)))
-      ).select($(instanceCol), $(featuresCol), $(labelCol)).toDF  // select 3 cols to DataFrame
-    } else {
-      feature.toDF
-    }
-  }
-
-  private def getNowTime = dateFormat.format(new Date())
-
-  /**
-    *  Multi-Grained Scanning
-    */
-  def multi_grain_Scan(dataset: Dataset[_]): (DataFrame, Array[MultiGrainedScanModel]) = {
-    require(dataset != null, "Null dataset need not to scan")
-    var scanFeature: DataFrame = null
-    val mgsModels = ArrayBuffer[MultiGrainedScanModel]()
-    val rand = new Random()
-    rand.setSeed(System.currentTimeMillis())
-    println(s"[$getNowTime] Multi Grained Scanning begin!")
-    if ($(dataStyle) == "image" && $(multiScanWindow).length > 0) {
-      require($(multiScanWindow).length % 2 == 0,
-        "The multiScanWindow must has the even number for image-style data")
-
-      val scanFeatures = ArrayBuffer[Dataset[_]]()
-
-      Range(0, $(multiScanWindow).length / 2).foreach { i =>
-        // Get the size of scan window
-        val (w, h) = ($(multiScanWindow)(i), $(multiScanWindow)(i+1))
-        val windowInstances = extractMatrixRDD(dataset, w, h)
-        val rfc = genRFClassifier("rfc", $(scanForestTreeNum), $(scanForestMinInstancesPerNode), 0)
-        var (rfcFeature, _, _, _, rfcModel) = featureTransform(windowInstances, null, rfc, true, "")
-        rfcFeature = rfcFeature.withColumn($(forestNumCol), lit(1)).withColumn($(scanCol), lit(i))
-        scanFeatures += rfcFeature
-
-        val crfc =
-          genRFClassifier("crfc", $(scanForestTreeNum), $(scanForestMinInstancesPerNode), 1)
-        var (crfcFeature, _, _, _, crfcModel) =
-          featureTransform(windowInstances, null, crfc, true, "")
-        crfcFeature = crfcFeature.withColumn($(forestNumCol), lit(2)).withColumn($(scanCol), lit(i))
-        scanFeatures += crfcFeature
-
-        mgsModels += new MultiGrainedScanModel(Array(w, h), rfcModel, crfcModel)
-      }
-      scanFeature = concatenate(scanFeatures.head, scanFeatures.tail:_*).cache
-    } else if ($(dataStyle) == "sequence" && $(multiScanWindow).length > 0) { // TODO
-      val scanFeatures = ArrayBuffer[Dataset[_]]()
-      $(multiScanWindow).indices.foreach { i => // for each window
-        val windowSize = $(multiScanWindow)(i)
-        val windowInstances = extractSequenceRDD(dataset, windowSize)
-        val rfc = genRFClassifier("rfc", $(scanForestTreeNum), $(scanForestMinInstancesPerNode), 0)
-        var (rfcFeature, _, _, _, rfcModel) = featureTransform(windowInstances, null, rfc, true, "")
-        rfcFeature = rfcFeature.withColumn($(forestNumCol), lit(1)).withColumn($(scanCol), lit(i))
-        scanFeatures += rfcFeature
-
-        val crfc =
-          genRFClassifier("crfc", $(scanForestTreeNum), $(scanForestMinInstancesPerNode), 1)
-        var (crfcFeature, _, _, _, crfcModel) =
-          featureTransform(windowInstances, null, crfc, true, "")
-        crfcFeature = crfcFeature.withColumn($(forestNumCol), lit(2)).withColumn($(scanCol), lit(i))
-        scanFeatures += crfcFeature
-
-        mgsModels += new MultiGrainedScanModel(Array(windowSize), rfcModel, crfcModel)
-      }
-      scanFeature = concatenate(scanFeatures.head, scanFeatures.tail:_*).cache
-    } else if ($(multiScanWindow).length > 0){
-      throw new UnsupportedOperationException(
-        "The dataStyle : " + $(dataStyle) + " is unsupported!")
-    }
-
-    if ($(multiScanWindow).length == 0)
-      scanFeature = dataset.toDF
-    // scanFeature: (instanceId, label, features)
-    println(s"[$getNowTime] Multi Grained Scanning finished!")
-    (scanFeature, mgsModels.toArray)
-  }
-
-  override protected def train(dataset: Dataset[_]): GCForestClassificationModel = {
-    train(dataset, null)
-  }
-
-  /**
-    *  Train a Cascade Forest
-    */
-  private def train(dataset: Dataset[_], testset: Dataset[_]): GCForestClassificationModel = {
-    val numClasses: Int = getNumClasses(dataset)
-    val erfModels = ArrayBuffer[Array[RandomForestCARTModel]]()
-    val n_train = dataset.count()
-    val n_test = testset.count()
-    val (scanFeature_train, mgsModels) = multi_grain_Scan(dataset)
-    val (scanFeature_test, mgsModels_test) =
-      if (testset != null) multi_grain_Scan(testset) else (null, null)
-
-    scanFeature_train.cache()
-    if (testset != null) scanFeature_test.cache()
-
-    println(s"[$getNowTime] Cascade Forest begin!")
-    val sparkSession = scanFeature_train.sparkSession
-    val sc = sparkSession.sparkContext
-    val rng = new Random()
-    rng.setSeed(System.currentTimeMillis())
-    var lastPrediction: DataFrame = null
-    var lastPrediction_test: DataFrame = null
-    val acc_list = Array(ArrayBuffer[Double](), ArrayBuffer[Double]())
-
-    // Init classifiers
-    val maxIteration = $(cascadeForestMaxIteration)
-    require(maxIteration > 0, "Non-positive maxIteration")
-    var layer_id = 1
-    var reachMaxLayer = false
-    val numPartitions_train = math.max(scanFeature_train.rdd.getNumPartitions,
-      sc.defaultParallelism)
-    val numPartitions_test = math.max(scanFeature_test.rdd.getNumPartitions,
-      sc.defaultParallelism)
-    while (!reachMaxLayer) {
-
-      println(s"[$getNowTime] Training Cascade Forest Layer $layer_id")
-
-      val ensembleRandomForest = Array[RandomForestCARTClassifier](
-        genRFClassifier("rfc", $(cascadeForestTreeNum), $(cascadeForestMinInstancesPerNode),
-          rng.nextInt + 0),
-        genRFClassifier("rfc", $(cascadeForestTreeNum), $(cascadeForestMinInstancesPerNode),
-          rng.nextInt + 1),
-        genRFClassifier("rfc", $(cascadeForestTreeNum), $(cascadeForestMinInstancesPerNode),
-          rng.nextInt + 2),
-        genRFClassifier("rfc", $(cascadeForestTreeNum), $(cascadeForestMinInstancesPerNode),
-          rng.nextInt + 3),
-        genRFClassifier("crfc", $(cascadeForestTreeNum), $(cascadeForestMinInstancesPerNode),
-          rng.nextInt + 4),
-        genRFClassifier("crfc", $(cascadeForestTreeNum), $(cascadeForestMinInstancesPerNode),
-          rng.nextInt + 5),
-        genRFClassifier("crfc", $(cascadeForestTreeNum), $(cascadeForestMinInstancesPerNode),
-          rng.nextInt + 6),
-        genRFClassifier("crfc", $(cascadeForestTreeNum), $(cascadeForestMinInstancesPerNode),
-          rng.nextInt + 7)
-      )
-      // scanFeatures_*: (instanceId, label, features)
-      val training = sc.broadcast(mergeFeatureAndPredict(scanFeature_train, lastPrediction)
-        .repartition(numPartitions_train).persist(StorageLevel.MEMORY_ONLY_SER))
-      val testing = sc.broadcast(mergeFeatureAndPredict(scanFeature_test, lastPrediction_test)
-        .repartition(numPartitions_test).persist(StorageLevel.MEMORY_ONLY_SER))
-      // val features_dim = training.first().mkString.split(",").length
-      val features_dim = if (layer_id == 1) 113 else 129
-      println(s"[$getNowTime] Training Set = ($n_train, $features_dim), " +
-        s"Testing Set = ($n_test, $features_dim)")
-
-      var ensemblePredict: DataFrame = null  // closure need
-      var ensemblePredict_test: DataFrame = null  // closure need
-      var layer_train_metric: Accuracy = new Accuracy(0, 0)  // closure need
-      var layer_test_metric: Accuracy = new Accuracy(0, 0)  // closure need
-      println(s"[$getNowTime] Forests fitting and transforming ......")
-      erfModels += ensembleRandomForest.zipWithIndex.map { case (rf, it) =>
-        val transformed = featureTransform(training.value, testing.value, rf,
-          false, s"layer [$layer_id] - estimator [$it]")
-        val predict = transformed._1
-          .withColumn($(forestNumCol), lit(it))
-          .select($(instanceCol), $(featuresCol), $(forestNumCol))
-        val predict_test = transformed._2
-          .withColumn($(forestNumCol), lit(it))
-          .select($(instanceCol), $(featuresCol), $(forestNumCol))
-        ensemblePredict =
-        if (ensemblePredict == null) predict else ensemblePredict.union(predict)
-        ensemblePredict_test =
-        if (ensemblePredict_test == null) predict_test else ensemblePredict_test
-          .union(predict_test)
-        layer_train_metric = layer_train_metric + transformed._3
-        println(s"[$getNowTime] [Estimator Summary] " +
-          s"layer [$layer_id] - estimator [$it] Train.predict = ${transformed._3}")
-        layer_test_metric = layer_test_metric + transformed._4
-        println(s"[$getNowTime] [Estimator Summary] " +
-          s"layer [$layer_id] - estimator [$it]  Test.predict = ${transformed._4}")
-        transformed._5
-      }
-      println(s"[$getNowTime] [Layer Summary] layer [$layer_id] - " +
-        s"train.classifier.average = ${layer_train_metric.div(8d)}")
-      println(s"[$getNowTime] [Layer Summary] layer [$layer_id] - " +
-        s"test.classifier.average = ${layer_test_metric.div(8d)}")
-      println(s"[$getNowTime] Forests fitting and transforming finished!")
-
-      val schema = new StructType()
-        .add(StructField($(instanceCol), LongType))
-        .add(StructField($(featuresCol), new VectorUDT))
-
-      println(s"[$getNowTime] Getting prediction RDD ......")
-      val predictRDDs =
-        Array(ensemblePredict, ensemblePredict_test).zipWithIndex.map { case (predict, idx) =>
-        val grouped = predict.rdd.groupBy(_.getAs[Long]($(instanceCol)))
-//          println(s"grouped $idx partition: ${grouped.getNumPartitions}")
-        val predictRDD = grouped.map { group =>
-          val instanceId = group._1
-          val rows = group._2
-          val features = new DenseVector(rows.toArray
-            .sortWith(_.getAs[Int]($(forestNumCol)) < _.getAs[Int]($(forestNumCol)))
-            .flatMap(_.getAs[Vector]($(featuresCol)).toArray))
-          Row.fromSeq(Array[Any](instanceId, features))
-        }
-        acc_list(idx) +=
-          (if (idx == 0) layer_train_metric.getAccuracy else layer_test_metric.getAccuracy)
-        predictRDD
-      }
-      //predictRDDs.foreach(r => r.persist(StorageLevel.MEMORY_ONLY_SER))
-      println(s"[$getNowTime] Get prediction RDD finished! Layer $layer_id training finished!")
-      val opt_layer_id_train = acc_list(0).zipWithIndex.maxBy(_._1)._2
-      val opt_layer_id_test = acc_list(1).zipWithIndex.maxBy(_._1)._2
-      if ($(earlyStopByTest)) {
-        if (opt_layer_id_test + 1 == layer_id)
-          println(s"[$getNowTime] [Result] [Optimal Layer] max_layer_num = $layer_id " +
-            s"accuracy_train=${acc_list(0)(opt_layer_id_train)*100}% " +
-            s"accuracy_test=${acc_list(1)(opt_layer_id_test)*100}%")
-      }
-      else {
-        if (opt_layer_id_train + 1 == layer_id)
-          println(s"[$getNowTime] [Result] [Optimal Layer] max_layer_num = $layer_id " +
-            s"accuracy_train = ${acc_list(0)(opt_layer_id_train)*100}% " +
-            s"accuracy_test = ${acc_list(1)(opt_layer_id_test)*100}%")
-      }
-      lastPrediction = sparkSession.createDataFrame(predictRDDs(0), schema).cache()
-      lastPrediction_test = sparkSession.createDataFrame(predictRDDs(1), schema).cache()
-      val outOfRounds =
-        ($(earlyStopByTest) && layer_id - opt_layer_id_test >= $(earlyStoppingRounds)) ||
-        (!$(earlyStopByTest) && layer_id - opt_layer_id_train >= $(earlyStoppingRounds))
-      if (outOfRounds)
-        println(s"[$getNowTime] " +
-          s"[Result][Optimal Level Detected] opt_layer_id = " +
-          s"${if ($(earlyStopByTest)) opt_layer_id_test else opt_layer_id_train}, " +
-          s"accuracy_train=${acc_list(0)(opt_layer_id_train)}, " +
-          s"accuracy_test=${acc_list(1)(opt_layer_id_test)}")
-      reachMaxLayer = (layer_id == maxIteration) || outOfRounds
-      if (reachMaxLayer)
-        println(s"[$getNowTime] " +
-          s"[Result][Reach Max Layer] max_layer_num=$layer_id, " +
-          s"accuracy_train=$layer_train_metric, accuracy_test=$layer_test_metric")
-      layer_id += 1
-    }
-
-    scanFeature_train.unpersist
-    if (testset != null) scanFeature_test.unpersist
-    println(s"[$getNowTime] Cascade Forest Training Finished!")
-    new GCForestClassificationModel(mgsModels, erfModels.toArray, numClasses)
-  }
-
-  override def fit(dataset: Dataset[_]): GCForestClassificationModel = super.fit(dataset)
-
-  def fit(trainset: Dataset[_], testset: Dataset[_]): GCForestClassificationModel = {
+  def train(trainset: Dataset[_], testset: Dataset[_]): GCForestClassificationModel = {
     // This handles a few items such as schema validation.
     // Developers only need to implement train().
     transformSchema(trainset.schema, logging = true)
@@ -544,7 +65,19 @@ class GCForestClassifier(override val uid: String)
     val casted_test =
       testset.withColumn($(labelCol), col($(labelCol)).cast(DoubleType), labelMeta_test)
 
-    copyValues(train(casted_train, casted_test))
+    copyValues(GCForestImpl.runWithValidation(casted_train, casted_test, getGCForestStrategy))
+  }
+
+  override def train(dataset: Dataset[_]): GCForestClassificationModel = {
+    // This handles a few items such as schema validation.
+    // Developers only need to implement train().
+    transformSchema(dataset.schema, logging = true)
+
+    // Cast LabelCol to DoubleType and keep the metadata.
+    val labelMeta = dataset.schema($(labelCol)).metadata
+    val casted_train =
+      dataset.withColumn($(labelCol), col($(labelCol)).cast(DoubleType), labelMeta)
+    GCForestImpl.run(casted_train, getGCForestStrategy)
   }
 
   override def copy(extra: ParamMap): GCForestClassifier = defaultCopy(extra)

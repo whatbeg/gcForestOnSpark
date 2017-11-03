@@ -6,7 +6,7 @@ package org.apache.spark.ml.Helper
 import org.apache.spark.ml.linalg.{DenseVector, Vector}
 import org.apache.spark.sql.functions.udf
 
-object UserDefinedFunctions {
+private[spark] object UserDefinedFunctions {
   def mergeVectorForKfold(k: Int) = k match {
     case 2 =>
       udf { (v1: Vector, v2: Vector) =>
