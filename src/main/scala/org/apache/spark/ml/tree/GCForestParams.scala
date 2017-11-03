@@ -10,6 +10,12 @@ import org.apache.spark.ml.param.shared.{HasSeed, HasTreeNumCol}
 
 private[ml] trait GCForestParams extends HasSeed with HasTreeNumCol {
 
+  final val classNum: IntParam = new IntParam(
+    this, "numClasses", "", (value: Int) => value > 0)
+
+  setDefault(classNum -> 2)
+  def setNumClasses(value: Int): this.type = set(classNum, value)
+
   final val multiScanWindow: IntArrayParam = new IntArrayParam(
     this, "multiScanWindow", "", (value: Array[Int]) => value.length >= 0)
 
@@ -29,11 +35,11 @@ private[ml] trait GCForestParams extends HasSeed with HasTreeNumCol {
   def setScanForestMinInstancesPerNode(value: Int): this.type =
     set(scanForestMinInstancesPerNode, value)
 
-  final val cascadeForestMaxIteration: IntParam = new IntParam(
+  final val MaxIteration: IntParam = new IntParam(
     this, "cascadeForestMaxIteration", "", (value: Int) => value > 0)
 
-  setDefault(cascadeForestMaxIteration -> 4)
-  def setMaxIteration(value: Int): this.type = set(cascadeForestMaxIteration, value)
+  setDefault(MaxIteration -> 4)
+  def setMaxIteration(value: Int): this.type = set(MaxIteration, value)
 
   final val cascadeForestTreeNum: IntParam = new IntParam(
     this, "cascadeForestTreeNum", "", (value: Int) => value > 0)
@@ -73,9 +79,9 @@ private[ml] trait GCForestParams extends HasSeed with HasTreeNumCol {
   def setEarlyStopByTest(value: Boolean): this.type = set(earlyStopByTest, value)
 
   final val dataStyle: Param[String] = new Param[String](
-    this, "dataStyle", "", (value: String) => Array("sequence", "image").contains(value)) // TODO
+    this, "dataStyle", "", (value: String) => Array("Seq", "Img").contains(value)) // TODO
 
-  setDefault(dataStyle -> "image")
+  setDefault(dataStyle -> "Seq")
   def setDataStyle(value: String): this.type = set(dataStyle, value)
 
   val dataSize: IntArrayParam = new IntArrayParam(this, "dataSize", "") // TODO
@@ -83,15 +89,15 @@ private[ml] trait GCForestParams extends HasSeed with HasTreeNumCol {
   def setDataSize(value: Array[Int]): this.type = set(dataSize, value)
   def getDataSize: Array[Int] = $(dataSize)
 
-  final val instanceCol: Param[String] =
-    new Param[String](this, "instanceCol", "instanceId column name")
-  setDefault(instanceCol -> "instance")
-
   final val windowCol: Param[String] = new Param[String](this, "windowCol", "windowId column name")
   setDefault(windowCol -> "window")
 
   final val scanCol: Param[String] = new Param[String](this, "scanCol", "scanId column name")
   setDefault(scanCol -> "scan_id")
+
+  final val forestIdCol: Param[String] =
+    new Param[String](this, "forestIdCol", "forest id column name")
+  setDefault(forestIdCol -> "forestNum")
 
   def setSeed(value: Long): this.type = set(seed, value)
 }
