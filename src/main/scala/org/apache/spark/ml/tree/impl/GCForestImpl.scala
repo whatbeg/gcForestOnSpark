@@ -6,6 +6,7 @@ package org.apache.spark.ml.tree.impl
 import java.text.SimpleDateFormat
 import java.util.Date
 
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.internal.Logging
 import org.apache.spark.ml.classification._
 import org.apache.spark.ml.evaluation.{Accuracy, Evaluator, Metric}
@@ -188,8 +189,8 @@ private[spark] object GCForestImpl extends Logging {
   }
 
   def cvClassVectorGeneratorWithValidation(
-      training: Dataset[_],
-      testing: Dataset[_],
+      bcastTraining: Broadcast[DataFrame],
+      bcastTesting: Broadcast[DataFrame],
       rfc: RandomForestCARTClassifier,
       numFolds: Int,
       seed: Long,
@@ -197,18 +198,16 @@ private[spark] object GCForestImpl extends Logging {
       isScan: Boolean,
       message: String):
   (DataFrame, DataFrame, Metric, Metric, RandomForestCARTModel) = {
-    val schema = training.schema
-    val sparkSession = training.sparkSession
+    val schema = bcastTraining.value.schema
+    val sparkSession = bcastTraining.value.sparkSession
     var out_train: DataFrame = null // closure need
     var out_test: DataFrame = null // closure need
 
-    require(training.schema.equals(testing.schema))
-    val testset = testing.toDF.persist(StorageLevel.MEMORY_ONLY_SER)
-    val bcastTesting = sparkSession.sparkContext.broadcast(testset) // closure need
+    require(bcastTraining.value.schema.equals(bcastTesting.value.schema))
 
     // cross-validation for k classes distribution features
     var train_metric = new Accuracy(0, 0)
-    val splits = MLUtils.kFold(training.toDF.rdd, numFolds, seed * System.currentTimeMillis())
+    val splits = MLUtils.kFold(bcastTraining.value.toDF.rdd, numFolds, seed * System.currentTimeMillis())
     splits.zipWithIndex.foreach {
       case ((t, v), splitIndex) =>
         val trainingDataset = sparkSession.createDataFrame(t, schema)
@@ -238,7 +237,7 @@ private[spark] object GCForestImpl extends Logging {
       UDF.mergeVectorForKfold(3)(Range(0, numFolds).map(k => col(strategy.featuresCol + s"$k")): _*))
       .select(strategy.instanceCol, strategy.labelCol, strategy.featuresCol)
     val test_metric = if (!isScan) Evaluator.evaluate(out_test) else new Accuracy(0, 0)
-    (out_train, out_test, train_metric, test_metric, rfc.fit(training))
+    (out_train, out_test, train_metric, test_metric, rfc.fit(bcastTraining.value))
   }
 
   // create a random forest classifier by type
@@ -485,25 +484,13 @@ private[spark] object GCForestImpl extends Logging {
 
       println(s"[$getNowTime] Training Cascade Forest Layer $layer_id")
 
-      val randomForests = Array[RandomForestCARTClassifier](
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 0),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 1),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 2),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 3),
-
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 4),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 5),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 6),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 7)
-      )
+      val randomForests = (Range(0, 4).map ( it => genRFClassifier("rfc", strategy.cascadeForestTreeNum,
+        strategy.maxBins, strategy.maxDepth, strategy.cascadeMinInsPerNode, rng.nextInt + it) )
+        ++
+        Range(4, 8).map ( it => genRFClassifier("crfc", strategy.cascadeForestTreeNum, strategy.maxBins,
+          strategy.maxDepth, strategy.cascadeMinInsPerNode, rng.nextInt + it))
+      ).toArray[RandomForestCARTClassifier]
+      assert(randomForests.length == 8, "random Forests inValid!")
       // scanFeatures_*: (instanceId, label, features)
       val training = mergeFeatureAndPredict(scanFeature_train, lastPrediction, strategy)
         .persist(StorageLevel.MEMORY_ONLY_SER)
@@ -636,25 +623,13 @@ private[spark] object GCForestImpl extends Logging {
 
       println(s"[$getNowTime] Training Cascade Forest Layer $layer_id")
 
-      val randomForests = Array[RandomForestCARTClassifier](
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 0),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 1),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 2),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 3),
-
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 4),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 5),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 6),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 7)
-      )
+      val randomForests = (Range(0, 4).map ( it => genRFClassifier("rfc", strategy.cascadeForestTreeNum,
+        strategy.maxBins, strategy.maxDepth, strategy.cascadeMinInsPerNode, rng.nextInt + it) )
+        ++
+        Range(4, 8).map ( it => genRFClassifier("crfc", strategy.cascadeForestTreeNum, strategy.maxBins,
+          strategy.maxDepth, strategy.cascadeMinInsPerNode, rng.nextInt + it))
+        ).toArray[RandomForestCARTClassifier]
+      assert(randomForests.length == 8, "random Forests inValid!")
       // scanFeatures_*: (instanceId, label, features)
       val training = mergeFeatureAndPredict(scanFeature_train, lastPrediction, strategy)
         .persist(StorageLevel.MEMORY_ONLY_SER)
@@ -677,7 +652,7 @@ private[spark] object GCForestImpl extends Logging {
 
       erfModels += randomForests.zipWithIndex.map { case (rf, it) =>
         val transformed = cvClassVectorGeneratorWithValidation(
-          bcastTraining.value, bcastTesting.value, rf, strategy.numFolds, strategy.seed, strategy,
+          bcastTraining, bcastTesting, rf, strategy.numFolds, strategy.seed, strategy,
           isScan = false, s"layer [$layer_id] - estimator [$it]")
         val predict = transformed._1
           .withColumn(strategy.forestIdCol, lit(it))
