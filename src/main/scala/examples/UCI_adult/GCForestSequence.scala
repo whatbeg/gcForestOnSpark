@@ -21,6 +21,8 @@ object GCForestSequence {
       .master("local[8]")
       .getOrCreate()
 
+    println(s"Create Spark Context Succeed! Parallelism: ${spark.sparkContext.defaultParallelism}")
+
     trainParser.parse(args, TrainParams()).map(param => {
 
       spark.sparkContext.setLogLevel(param.debugLevel)
@@ -28,8 +30,10 @@ object GCForestSequence {
       val output = param.model
 
       val train = new UCI_adult().load_data(spark, param.trainFile, 1)
+        .repartition(spark.sparkContext.defaultParallelism)
 
       val test = new UCI_adult().load_data(spark, param.testFile, 1)
+        .repartition(spark.sparkContext.defaultParallelism)
 
       val gcForest = new GCForestClassifier()
         .setDataSize(param.dataSize)
