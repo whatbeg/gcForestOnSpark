@@ -341,7 +341,7 @@ private[spark] object GCForestImpl extends Logging {
         // join (predict feature col to predictionCol)
         predict.withColumnRenamed(strategy.featuresCol, strategy.predictionCol),
         Seq(strategy.instanceCol)  // join on instanceCol
-        // replace featureCol with featureCol + predictionCol
+        // add a featureCol with featureCol + predictionCol
       ).withColumn(strategy.featuresCol, vectorMerge(col(strategy.featuresCol),
         col(strategy.predictionCol))
       ).select(strategy.instanceCol, strategy.featuresCol, strategy.labelCol).toDF
@@ -632,8 +632,10 @@ private[spark] object GCForestImpl extends Logging {
       assert(randomForests.length == 8, "random Forests inValid!")
       // scanFeatures_*: (instanceId, label, features)
       val training = mergeFeatureAndPredict(scanFeature_train, lastPrediction, strategy)
+        .repartition(sc.defaultParallelism)
         .persist(StorageLevel.MEMORY_ONLY_SER)
       val testing = mergeFeatureAndPredict(scanFeature_test, lastPrediction_test, strategy)
+        .repartition(sc.defaultParallelism)
         .persist(StorageLevel.MEMORY_ONLY_SER)
       val bcastTraining = sc.broadcast(training)
       val bcastTesting = sc.broadcast(testing)
@@ -641,6 +643,9 @@ private[spark] object GCForestImpl extends Logging {
 
       println(s"[$getNowTime] Training Set = ($n_train, $features_dim), " +
         s"Testing Set = ($n_test, $features_dim)")
+
+      if (lastPrediction != null) lastPrediction.unpersist(blocking = false)
+      if (lastPrediction_test != null) lastPrediction_test.unpersist(blocking = false)
 
       var ensemblePredict: DataFrame = null  // closure need
       var ensemblePredict_test: DataFrame = null  // closure need
@@ -723,8 +728,8 @@ private[spark] object GCForestImpl extends Logging {
             s"accuracy_test = ${acc_list(1)(opt_layer_id_test)*100}%")
       }
 
-      lastPrediction = sparkSession.createDataFrame(predictRDDs(0), schema).cache()
-      lastPrediction_test = sparkSession.createDataFrame(predictRDDs(1), schema).cache()
+      lastPrediction = sparkSession.createDataFrame(predictRDDs(0), schema).persist(StorageLevel.MEMORY_ONLY_SER)
+      lastPrediction_test = sparkSession.createDataFrame(predictRDDs(1), schema).persist(StorageLevel.MEMORY_ONLY_SER)
       val outOfRounds =
         (strategy.earlyStopByTest && layer_id - opt_layer_id_test >= strategy.earlyStoppingRounds) ||
         (!strategy.earlyStopByTest && layer_id - opt_layer_id_train >= strategy.earlyStoppingRounds)
@@ -742,6 +747,8 @@ private[spark] object GCForestImpl extends Logging {
       layer_id += 1
       bcastTraining.destroy(blocking = false)
       bcastTesting.destroy(blocking = false)
+      training.unpersist(blocking = false)
+      testing.unpersist(blocking = false)
     }
 
     scanFeature_train.unpersist
