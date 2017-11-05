@@ -51,7 +51,7 @@ class GCForestClassifier(override val uid: String)
   }
 
   def getDefaultStrategy: GCForestStrategy = {
-    GCForestStrategy(2, Array(), Array())
+    GCForestStrategy(2, Array(), Array(113))
   }
 
   def train(trainset: Dataset[_], testset: Dataset[_]): GCForestClassificationModel = {

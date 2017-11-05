@@ -84,7 +84,7 @@ private[ml] trait GCForestParams extends HasSeed with HasTreeNumCol {
   setDefault(dataStyle -> "Seq")
   def setDataStyle(value: String): this.type = set(dataStyle, value)
 
-  val dataSize: IntArrayParam = new IntArrayParam(this, "dataSize", "") // TODO
+  val dataSize: IntArrayParam = new IntArrayParam(this, "dataSize", "", (value: Array[Int]) => value.length >= 0)
 
   def setDataSize(value: Array[Int]): this.type = set(dataSize, value)
   def getDataSize: Array[Int] = $(dataSize)
