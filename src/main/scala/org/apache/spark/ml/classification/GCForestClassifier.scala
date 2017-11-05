@@ -43,11 +43,15 @@ class GCForestClassifier(override val uid: String)
   override def setEarlyStoppingRounds(value: Int): this.type = set(earlyStoppingRounds, value)
 
   def getGCForestStrategy: GCForestStrategy = {
-    GCForestStrategy($(classNum), $(multiScanWindow), $(scanForestTreeNum),
+    GCForestStrategy($(classNum), $(multiScanWindow), $(dataSize), $(scanForestTreeNum),
       $(cascadeForestTreeNum), $(scanForestMinInstancesPerNode),
       $(cascadeForestMinInstancesPerNode), $(randomForestMaxBins), $(randomForestMaxDepth),
       $(MaxIteration), $(numFolds), $(earlyStoppingRounds), $(earlyStopByTest), $(dataStyle),
-      $(dataSize), $(seed), $(windowCol), $(scanCol), $(forestIdCol))
+      $(seed), $(windowCol), $(scanCol), $(forestIdCol))
+  }
+
+  def getDefaultStrategy: GCForestStrategy = {
+    GCForestStrategy(2, Array(), Array())
   }
 
   def train(trainset: Dataset[_], testset: Dataset[_]): GCForestClassificationModel = {
@@ -124,7 +128,7 @@ private[ml] class GCForestClassificationModel (
     /**
       * Multi-Grained Scanning
       */
-    if ($(dataStyle) == "image") {
+    if ($(dataStyle) == "Img") {
       val width = $(dataSize)(0)
       val height = $(dataSize)(1)
       require(features.size == width * height)
@@ -150,7 +154,7 @@ private[ml] class GCForestClassificationModel (
           }
         }
       }
-    } else if ($(dataStyle) == "sequence") { // TODO
+    } else if ($(dataStyle) == "Seq") { // TODO
       throw new UnsupportedOperationException("Unsupported sequence data rightly!")
     } else {
       throw new UnsupportedOperationException(

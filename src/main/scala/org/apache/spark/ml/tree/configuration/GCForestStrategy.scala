@@ -4,8 +4,9 @@
 package org.apache.spark.ml.tree.configuration
 
 case class GCForestStrategy(
-                            var classNum: Int,
+                            var classNum: Int = 2,
                             var multiScanWindow: Array[Int],
+                            var dataSize: Array[Int],
                             var scanForestTreeNum: Int = 2,
                             var cascadeForestTreeNum: Int = 1,
                             var scanMinInsPerNode: Int = 1,
@@ -17,8 +18,7 @@ case class GCForestStrategy(
                             var earlyStoppingRounds: Int = 4,
                             var earlyStopByTest: Boolean = true,
                             var dataStyle: String = "Seq",
-                            var dataSize: Array[Int],
-                            var seed: Long,
+                            var seed: Long = 123L,
                             var winCol: String = "windows",
                             var scanCol: String = "scan_id",
                             var forestIdCol: String = "forestNum",

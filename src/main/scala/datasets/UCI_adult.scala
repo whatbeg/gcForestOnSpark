@@ -19,7 +19,7 @@ class UCI_adult extends BaseDatasets {
     * @param cate_as_onehot convert categorical data to one-hot format
     * @return loaded DataFrame
     */
-  def load_data(spark: SparkSession, phase: String, cate_as_onehot: Int): DataFrame = {
+  def load_data(spark: SparkSession, phase: String, featuresPath: String, cate_as_onehot: Int): DataFrame = {
     val data_path =
       if (phase == "train") "data/uci_adult/sample_adult.data"
       else if (phase == "test") "data/uci_adult/sample_adult.test"
@@ -27,7 +27,7 @@ class UCI_adult extends BaseDatasets {
 
     val raw = spark.read.text(data_path)
 
-    val features_path = "data/uci_adult/features"
+    val features_path = if (featuresPath == "") "data/uci_adult/features" else featuresPath
 
     val fts_file = spark.read.text(features_path)
     val f_parsers = fts_file.rdd.filter(row => row.length > 0).map { row =>
