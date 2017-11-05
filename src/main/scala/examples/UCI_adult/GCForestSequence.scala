@@ -6,6 +6,7 @@ package examples.UCI_adult
 import org.apache.spark.ml.classification.GCForestClassifier
 import datasets.UCI_adult
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.utils.engine.Engine
 
 
 object GCForestSequence {
@@ -16,11 +17,16 @@ object GCForestSequence {
 
     val spark = SparkSession.builder()
       .appName(this.getClass.getSimpleName)
-      .master("local[*]")
+//      .master("local[*]")
       .getOrCreate()
 
-    println(spark.conf.getAll)
-    println(s"Create Spark Context Succeed! Parallelism: ${spark.sparkContext.defaultParallelism}")
+//    println(spark.conf.getAll)
+//    println(s"Engine getParallelism: ${Engine.getParallelism(spark.sparkContext)}")
+//    println(s"Create Spark Context Succeed! Parallelism: ${spark.sparkContext.defaultParallelism}")
+    val parallelism = Engine.getParallelism(spark.sparkContext)
+    println(s"Create Spark Context Succeed! Parallelism is $parallelism")
+    spark.conf.set("spark.default.parallelism", parallelism)
+    spark.conf.set("spark.locality.wait.node", 0)
 
     trainParser.parse(args, TrainParams()).map(param => {
 
@@ -29,10 +35,10 @@ object GCForestSequence {
       val output = param.model
 
       val train = new UCI_adult().load_data(spark, param.trainFile, param.featuresFile, 1)
-        .repartition(spark.sparkContext.defaultParallelism)
+        .repartition(parallelism)
       // if (param.idebug) println(s"train repartition ${spark.sparkContext.defaultParallelism}")
       val test = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, 1)
-        .repartition(spark.sparkContext.defaultParallelism)
+        .repartition(parallelism)
       // if (param.idebug) println(s"test repartition ${spark.sparkContext.defaultParallelism}")
       val gcForest = new GCForestClassifier()
         .setDataSize(param.dataSize)
