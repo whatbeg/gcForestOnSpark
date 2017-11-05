@@ -6,6 +6,7 @@ package org.apache.spark.ml.tree.impl
 import java.text.SimpleDateFormat
 import java.util.Date
 
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.internal.Logging
 import org.apache.spark.ml.classification._
 import org.apache.spark.ml.evaluation.{Accuracy, Evaluator, Metric}
@@ -188,8 +189,8 @@ private[spark] object GCForestImpl extends Logging {
   }
 
   def cvClassVectorGeneratorWithValidation(
-      training: Dataset[_],
-      testing: Dataset[_],
+      bcastTraining: Broadcast[DataFrame],
+      bcastTesting: Broadcast[DataFrame],
       rfc: RandomForestCARTClassifier,
       numFolds: Int,
       seed: Long,
@@ -197,18 +198,16 @@ private[spark] object GCForestImpl extends Logging {
       isScan: Boolean,
       message: String):
   (DataFrame, DataFrame, Metric, Metric, RandomForestCARTModel) = {
-    val schema = training.schema
-    val sparkSession = training.sparkSession
+    val schema = bcastTraining.value.schema
+    val sparkSession = bcastTraining.value.sparkSession
     var out_train: DataFrame = null // closure need
     var out_test: DataFrame = null // closure need
 
-    require(training.schema.equals(testing.schema))
-    val testset = testing.toDF.persist(StorageLevel.MEMORY_ONLY_SER)
-    val bcastTesting = sparkSession.sparkContext.broadcast(testset) // closure need
+    require(bcastTraining.value.schema.equals(bcastTesting.value.schema))
 
     // cross-validation for k classes distribution features
     var train_metric = new Accuracy(0, 0)
-    val splits = MLUtils.kFold(training.toDF.rdd, numFolds, seed * System.currentTimeMillis())
+    val splits = MLUtils.kFold(bcastTraining.value.toDF.rdd, numFolds, seed * System.currentTimeMillis())
     splits.zipWithIndex.foreach {
       case ((t, v), splitIndex) =>
         val trainingDataset = sparkSession.createDataFrame(t, schema)
@@ -224,11 +223,13 @@ private[spark] object GCForestImpl extends Logging {
         if (!isScan) {
           val val_acc = Evaluator.evaluate(val_result)
           train_metric += val_acc
+          // println(s"train_metric += $val_acc")
           println(s"[$getNowTime] $message ${numFolds}_folds.train_$splitIndex = $val_acc")
         }
 
         val test_result = model.transform(bcastTesting.value)
-          .drop(strategy.featuresCol).withColumnRenamed(strategy.probabilityCol, strategy.featuresCol+s"$splitIndex")
+          .withColumnRenamed(strategy.probabilityCol, strategy.featuresCol+s"$splitIndex")
+          .select(strategy.instanceCol, strategy.labelCol, strategy.featuresCol+s"$splitIndex")
         out_test = if (out_test == null) test_result
           else out_test.join(test_result, Seq(strategy.instanceCol, strategy.labelCol))
 
@@ -238,7 +239,7 @@ private[spark] object GCForestImpl extends Logging {
       UDF.mergeVectorForKfold(3)(Range(0, numFolds).map(k => col(strategy.featuresCol + s"$k")): _*))
       .select(strategy.instanceCol, strategy.labelCol, strategy.featuresCol)
     val test_metric = if (!isScan) Evaluator.evaluate(out_test) else new Accuracy(0, 0)
-    (out_train, out_test, train_metric, test_metric, rfc.fit(training))
+    (out_train, out_test, train_metric, test_metric, rfc.fit(bcastTraining.value))
   }
 
   // create a random forest classifier by type
@@ -342,7 +343,7 @@ private[spark] object GCForestImpl extends Logging {
         // join (predict feature col to predictionCol)
         predict.withColumnRenamed(strategy.featuresCol, strategy.predictionCol),
         Seq(strategy.instanceCol)  // join on instanceCol
-        // replace featureCol with featureCol + predictionCol
+        // add a featureCol with featureCol + predictionCol
       ).withColumn(strategy.featuresCol, vectorMerge(col(strategy.featuresCol),
         col(strategy.predictionCol))
       ).select(strategy.instanceCol, strategy.featuresCol, strategy.labelCol).toDF
@@ -359,19 +360,7 @@ private[spark] object GCForestImpl extends Logging {
     */
   def multi_grain_Scan(
       dataset: Dataset[_],
-      strategy: GCForestStrategy,
-      multiScanWindow: Array[Int],
-      dataStyle: String,
-      dataSize: Array[Int],
-      scanForestTreeNum: Int,
-      scanForestMinInsPerNode: Int,
-      maxBins: Int,
-      maxDepth: Int,
-      numFolds: Int,
-      seed: Long,
-      scanCol: String,
-      winCol: String,
-      forestIdCol: String): (DataFrame, Array[MultiGrainedScanModel]) = {
+      strategy: GCForestStrategy): (DataFrame, Array[MultiGrainedScanModel]) = {
 
     require(dataset != null, "Null dataset need not to scan")
 
@@ -382,30 +371,34 @@ private[spark] object GCForestImpl extends Logging {
 
     println(s"[$getNowTime] Multi Grained Scanning begin!")
 
-    if (dataStyle == "Img" && multiScanWindow.length > 0) {
-      require(multiScanWindow.length % 2 == 0,
+    if (strategy.dataStyle == "Img" && strategy.multiScanWindow.length > 0) {
+      require(strategy.multiScanWindow.length % 2 == 0,
         "The multiScanWindow must has the even number for image-style data")
 
       val scanFeatures = ArrayBuffer[Dataset[_]]()
 
-      Range(0, multiScanWindow.length / 2).foreach { i =>
+      Range(0, strategy.multiScanWindow.length / 2).foreach { i =>
         // Get the size of scan window
-        val (w, h) = (multiScanWindow(i), multiScanWindow(i+1))
-        val windowInstances = extractMatrixRDD(dataset, w, h, dataSize, strategy.featuresCol, winCol)
+        val (w, h) = (strategy.multiScanWindow(i), strategy.multiScanWindow(i+1))
+        val windowInstances = extractMatrixRDD(dataset, w, h, strategy.dataSize, strategy.featuresCol, strategy.winCol)
 
         val rfc =
-          genRFClassifier("rfc", maxBins, maxDepth, scanForestTreeNum, scanForestMinInsPerNode, 0)
+          genRFClassifier("rfc", strategy.maxBins, strategy.maxDepth, strategy.scanForestTreeNum,
+            strategy.scanMinInsPerNode, 0)
         var (rfcFeature, _, rfcModel) =
-          cvClassVectorGenerator(windowInstances, rfc, numFolds, seed, strategy, isScan = true, "Scan 1")
-        rfcFeature = rfcFeature.withColumn(forestIdCol, lit(1)).withColumn(scanCol, lit(i))
+          cvClassVectorGenerator(windowInstances, rfc, strategy.numFolds, strategy.seed, strategy,
+            isScan = true, "Scan 1")
+        rfcFeature = rfcFeature.withColumn(strategy.forestIdCol, lit(1)).withColumn(strategy.scanCol, lit(i))
 
         scanFeatures += rfcFeature
 
         val crfc =
-          genRFClassifier("crfc", maxBins, maxDepth, scanForestTreeNum, scanForestMinInsPerNode, 1)
+          genRFClassifier("crfc", strategy.maxBins, strategy.maxDepth, strategy.scanForestTreeNum,
+            strategy.scanMinInsPerNode, 1)
         var (crfcFeature, _, crfcModel) =
-          cvClassVectorGenerator(windowInstances, crfc, numFolds, seed, strategy, isScan = true, "Scan 2")
-        crfcFeature = crfcFeature.withColumn(forestIdCol, lit(2)).withColumn(scanCol, lit(i))
+          cvClassVectorGenerator(windowInstances, crfc, strategy.numFolds, strategy.seed, strategy,
+            isScan = true, "Scan 2")
+        crfcFeature = crfcFeature.withColumn(strategy.forestIdCol, lit(2)).withColumn(strategy.scanCol, lit(i))
 
         scanFeatures += crfcFeature
 
@@ -414,25 +407,30 @@ private[spark] object GCForestImpl extends Logging {
       scanFeature =
         concatenate(strategy, scanFeatures.head, scanFeatures.tail:_*).cache
 
-    } else if (dataStyle == "Seq" && multiScanWindow.length > 0) {
+    } else if (strategy.dataStyle == "Seq" && strategy.multiScanWindow.length > 0) {
       val scanFeatures = ArrayBuffer[Dataset[_]]()
-      multiScanWindow.indices.foreach { i => // for each window
-        val windowSize = multiScanWindow(i)
-        val windowInstances = extractSequenceRDD(dataset, windowSize, dataSize, strategy.featuresCol, winCol)
+      strategy.multiScanWindow.indices.foreach { i => // for each window
+        val windowSize = strategy.multiScanWindow(i)
+        val windowInstances = extractSequenceRDD(dataset, windowSize, strategy.dataSize,
+          strategy.featuresCol, strategy.winCol)
 
         val rfc =
-          genRFClassifier("rfc", maxBins, maxDepth, scanForestTreeNum, scanForestMinInsPerNode, 0)
+          genRFClassifier("rfc", strategy.maxBins, strategy.maxDepth, strategy.scanForestTreeNum,
+            strategy.scanMinInsPerNode, 0)
         var (rfcFeature, _, rfcModel) =
-          cvClassVectorGenerator(windowInstances, rfc, numFolds, seed, strategy, isScan = true, "Scan 1")
-        rfcFeature = rfcFeature.withColumn(forestIdCol, lit(1)).withColumn(scanCol, lit(i))
+          cvClassVectorGenerator(windowInstances, rfc, strategy.numFolds, strategy.seed, strategy,
+            isScan = true, "Scan 1")
+        rfcFeature = rfcFeature.withColumn(strategy.forestIdCol, lit(1)).withColumn(strategy.scanCol, lit(i))
 
         scanFeatures += rfcFeature
 
         val crfc =
-          genRFClassifier("crfc", maxBins, maxDepth, scanForestTreeNum, scanForestMinInsPerNode, 1)
+          genRFClassifier("crfc", strategy.maxBins, strategy.maxDepth, strategy.scanForestTreeNum,
+            strategy.scanMinInsPerNode, 1)
         var (crfcFeature, _, crfcModel) =
-          cvClassVectorGenerator(windowInstances, crfc, numFolds, seed, strategy, isScan = true, "Scan 2")
-        crfcFeature = crfcFeature.withColumn(forestIdCol, lit(2)).withColumn(scanCol, lit(i))
+          cvClassVectorGenerator(windowInstances, crfc, strategy.numFolds, strategy.seed, strategy,
+            isScan = true, "Scan 2")
+        crfcFeature = crfcFeature.withColumn(strategy.forestIdCol, lit(2)).withColumn(strategy.scanCol, lit(i))
         scanFeatures += crfcFeature
 
         mgsModels += new MultiGrainedScanModel(Array(windowSize), rfcModel, crfcModel)
@@ -440,11 +438,11 @@ private[spark] object GCForestImpl extends Logging {
       scanFeature =
         concatenate(strategy, scanFeatures.head, scanFeatures.tail:_*).cache
 
-    } else if (multiScanWindow.length > 0){
-      throw new UnsupportedOperationException(s"The dataStyle: $dataStyle is unsupported!")
+    } else if (strategy.multiScanWindow.length > 0){
+      throw new UnsupportedOperationException(s"The dataStyle: ${strategy.dataStyle} is unsupported!")
     }
 
-    if (multiScanWindow.length == 0)
+    if (strategy.multiScanWindow.length == 0)
       scanFeature = dataset.toDF
     // scanFeature: (instanceId, label, features)
     println(s"[$getNowTime] Multi Grained Scanning finished!")
@@ -458,10 +456,7 @@ private[spark] object GCForestImpl extends Logging {
     val erfModels = ArrayBuffer[Array[RandomForestCARTModel]]()
     val n_train = input.count()
 
-    val (scanFeature_train, mgsModels) = multi_grain_Scan(input, strategy, strategy.multiScanWindow,
-      strategy.dataStyle, strategy.dataSize, strategy.scanForestTreeNum,
-      strategy.scanMinInsPerNode, strategy.maxBins, strategy.maxDepth, strategy.numFolds,
-      strategy.seed, strategy.scanCol, strategy.winCol, strategy.forestIdCol)
+    val (scanFeature_train, mgsModels) = multi_grain_Scan(input, strategy)
 
     scanFeature_train.cache()
 
@@ -485,25 +480,13 @@ private[spark] object GCForestImpl extends Logging {
 
       println(s"[$getNowTime] Training Cascade Forest Layer $layer_id")
 
-      val randomForests = Array[RandomForestCARTClassifier](
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 0),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 1),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 2),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 3),
-
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 4),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 5),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 6),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 7)
-      )
+      val randomForests = (Range(0, 4).map ( it => genRFClassifier("rfc", strategy.cascadeForestTreeNum,
+        strategy.maxBins, strategy.maxDepth, strategy.cascadeMinInsPerNode, rng.nextInt + it) )
+        ++
+        Range(4, 8).map ( it => genRFClassifier("crfc", strategy.cascadeForestTreeNum, strategy.maxBins,
+          strategy.maxDepth, strategy.cascadeMinInsPerNode, rng.nextInt + it))
+      ).toArray[RandomForestCARTClassifier]
+      assert(randomForests.length == 8, "random Forests inValid!")
       // scanFeatures_*: (instanceId, label, features)
       val training = mergeFeatureAndPredict(scanFeature_train, lastPrediction, strategy)
         .persist(StorageLevel.MEMORY_ONLY_SER)
@@ -599,18 +582,12 @@ private[spark] object GCForestImpl extends Logging {
               validationInput: Dataset[_],
               strategy: GCForestStrategy): GCForestClassificationModel = {
     val numClasses: Int = strategy.classNum
-    val erfModels = ArrayBuffer[Array[RandomForestCARTModel]]()
+    val erfModels = ArrayBuffer[Array[RandomForestCARTModel]]() // layer - (forest * fold)
     val n_train = input.count()
     val n_test = validationInput.count()
 
-    val (scanFeature_train, mgsModels) = multi_grain_Scan(input, strategy, strategy.multiScanWindow,
-      strategy.dataStyle, strategy.dataSize, strategy.scanForestTreeNum,
-      strategy.scanMinInsPerNode, strategy.maxBins, strategy.maxDepth, strategy.numFolds,
-      strategy.seed, strategy.scanCol, strategy.winCol, strategy.forestIdCol)
-    val (scanFeature_test, mgsModels_test) = multi_grain_Scan(validationInput, strategy,
-      strategy.multiScanWindow, strategy.dataStyle, strategy.dataSize, strategy.scanForestTreeNum,
-      strategy.scanMinInsPerNode, strategy.maxBins, strategy.maxDepth, strategy.numFolds,
-      strategy.seed, strategy.scanCol, strategy.winCol, strategy.forestIdCol)
+    val (scanFeature_train, mgsModels) = multi_grain_Scan(input, strategy)
+    val (scanFeature_test, mgsModels_test) = multi_grain_Scan(validationInput, strategy)
 
     scanFeature_train.cache()
     scanFeature_test.cache()
@@ -631,41 +608,35 @@ private[spark] object GCForestImpl extends Logging {
     require(maxIteration > 0, "Non-positive maxIteration")
     var layer_id = 1
     var reachMaxLayer = false
+    val bcastStrategy = sc.broadcast(strategy)
 
     while (!reachMaxLayer) {
 
       println(s"[$getNowTime] Training Cascade Forest Layer $layer_id")
 
-      val randomForests = Array[RandomForestCARTClassifier](
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 0),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 1),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 2),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 3),
-
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 4),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 5),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 6),
-        genRFClassifier("rfc", strategy.cascadeForestTreeNum, strategy.maxBins, strategy.maxDepth,
-          strategy.cascadeMinInsPerNode, rng.nextInt + 7)
-      )
+      val randomForests = (Range(0, 4).map ( it => genRFClassifier("rfc", strategy.cascadeForestTreeNum,
+        strategy.maxBins, strategy.maxDepth, strategy.cascadeMinInsPerNode, rng.nextInt + it) )
+        ++
+        Range(4, 8).map ( it => genRFClassifier("crfc", strategy.cascadeForestTreeNum, strategy.maxBins,
+          strategy.maxDepth, strategy.cascadeMinInsPerNode, rng.nextInt + it))
+        ).toArray[RandomForestCARTClassifier]
+      assert(randomForests.length == 8, "random Forests inValid!")
       // scanFeatures_*: (instanceId, label, features)
       val training = mergeFeatureAndPredict(scanFeature_train, lastPrediction, strategy)
-        .persist(StorageLevel.MEMORY_ONLY_SER)
+        .repartition(sc.defaultParallelism)
+        .persist(StorageLevel.MEMORY_AND_DISK_SER)
       val testing = mergeFeatureAndPredict(scanFeature_test, lastPrediction_test, strategy)
-        .persist(StorageLevel.MEMORY_ONLY_SER)
+        .repartition(sc.defaultParallelism)
+        .persist(StorageLevel.MEMORY_AND_DISK_SER)
       val bcastTraining = sc.broadcast(training)
       val bcastTesting = sc.broadcast(testing)
       val features_dim = training.first().mkString.split(",").length
 
       println(s"[$getNowTime] Training Set = ($n_train, $features_dim), " +
         s"Testing Set = ($n_test, $features_dim)")
+
+      if (lastPrediction != null) lastPrediction.unpersist(blocking = false)
+      if (lastPrediction_test != null) lastPrediction_test.unpersist(blocking = false)
 
       var ensemblePredict: DataFrame = null  // closure need
       var ensemblePredict_test: DataFrame = null  // closure need
@@ -676,15 +647,16 @@ private[spark] object GCForestImpl extends Logging {
       println(s"[$getNowTime] Forests fitting and transforming ......")
 
       erfModels += randomForests.zipWithIndex.map { case (rf, it) =>
+        val st = bcastStrategy.value
         val transformed = cvClassVectorGeneratorWithValidation(
-          bcastTraining.value, bcastTesting.value, rf, strategy.numFolds, strategy.seed, strategy,
+          bcastTraining, bcastTesting, rf, st.numFolds, st.seed, st,
           isScan = false, s"layer [$layer_id] - estimator [$it]")
         val predict = transformed._1
-          .withColumn(strategy.forestIdCol, lit(it))
-          .select(strategy.instanceCol, strategy.featuresCol, strategy.forestIdCol)
+          .withColumn(st.forestIdCol, lit(it))
+          .select(st.instanceCol, st.featuresCol, st.forestIdCol)
         val predict_test = transformed._2
-          .withColumn(strategy.forestIdCol, lit(it))
-          .select(strategy.instanceCol, strategy.featuresCol, strategy.forestIdCol)
+          .withColumn(st.forestIdCol, lit(it))
+          .select(st.instanceCol, st.featuresCol, st.forestIdCol)
         ensemblePredict =
           if (ensemblePredict == null) predict else ensemblePredict.union(predict)
         ensemblePredict_test =
@@ -692,10 +664,12 @@ private[spark] object GCForestImpl extends Logging {
             .union(predict_test)
 
         layer_train_metric = layer_train_metric + transformed._3
+        // println(s"layer_train_metric RF_$it add ${transformed._3}")
+        layer_test_metric = layer_test_metric + transformed._4
+        // println(s"layer_test_metric RF_$it add ${transformed._4}")
 
         println(s"[$getNowTime] [Estimator Summary] " +
           s"layer [$layer_id] - estimator [$it] Train.predict = ${transformed._3}")
-        layer_test_metric = layer_test_metric + transformed._4
         println(s"[$getNowTime] [Estimator Summary] " +
           s"layer [$layer_id] - estimator [$it]  Test.predict = ${transformed._4}")
         transformed._5
@@ -707,26 +681,27 @@ private[spark] object GCForestImpl extends Logging {
         s"test.classifier.average = ${layer_test_metric.div(8d)}")
       println(s"[$getNowTime] Forests fitting and transforming finished!")
 
+      acc_list(0) += layer_train_metric.getAccuracy
+      acc_list(1) += layer_test_metric.getAccuracy
+
       val schema = new StructType()
-        .add(StructField(strategy.instanceCol, LongType))
-        .add(StructField(strategy.featuresCol, new VectorUDT))
+        .add(StructField(bcastStrategy.value.instanceCol, LongType))
+        .add(StructField(bcastStrategy.value.featuresCol, new VectorUDT))
 
       println(s"[$getNowTime] Getting prediction RDD ......")
 
       val predictRDDs =
-        Array(ensemblePredict, ensemblePredict_test).zipWithIndex.map { case (predict, idx) =>
-          val grouped = predict.rdd.groupBy(_.getAs[Long](strategy.instanceCol))
+        Array(ensemblePredict, ensemblePredict_test).map { predict =>
+          val grouped = predict.rdd.groupBy(_.getAs[Long](bcastStrategy.value.instanceCol))
           //          println(s"grouped $idx partition: ${grouped.getNumPartitions}")
           val predictRDD = grouped.map { group =>
             val instanceId = group._1
             val rows = group._2
             val features = new DenseVector(rows.toArray
-              .sortWith(_.getAs[Int](strategy.forestIdCol) < _.getAs[Int](strategy.forestIdCol))
-              .flatMap(_.getAs[Vector](strategy.featuresCol).toArray))
+              .sortWith(_.getAs[Int](bcastStrategy.value.forestIdCol) < _.getAs[Int](bcastStrategy.value.forestIdCol))
+              .flatMap(_.getAs[Vector](bcastStrategy.value.featuresCol).toArray))
             Row.fromSeq(Array[Any](instanceId, features))
           }
-          acc_list(idx) +=
-            (if (idx == 0) layer_train_metric.getAccuracy else layer_test_metric.getAccuracy)
           predictRDD
         }
       //predictRDDs.foreach(r => r.persist(StorageLevel.MEMORY_ONLY_SER))
@@ -748,8 +723,9 @@ private[spark] object GCForestImpl extends Logging {
             s"accuracy_test = ${acc_list(1)(opt_layer_id_test)*100}%")
       }
 
-      lastPrediction = sparkSession.createDataFrame(predictRDDs(0), schema).cache()
-      lastPrediction_test = sparkSession.createDataFrame(predictRDDs(1), schema).cache()
+      lastPrediction = sparkSession.createDataFrame(predictRDDs(0), schema).persist(StorageLevel.MEMORY_AND_DISK_SER)
+      lastPrediction_test = sparkSession.createDataFrame(predictRDDs(1), schema)
+        .persist(StorageLevel.MEMORY_AND_DISK_SER)
       val outOfRounds =
         (strategy.earlyStopByTest && layer_id - opt_layer_id_test >= strategy.earlyStoppingRounds) ||
         (!strategy.earlyStopByTest && layer_id - opt_layer_id_train >= strategy.earlyStoppingRounds)
@@ -767,8 +743,10 @@ private[spark] object GCForestImpl extends Logging {
       layer_id += 1
       bcastTraining.destroy(blocking = false)
       bcastTesting.destroy(blocking = false)
+      training.unpersist(blocking = false)
+      testing.unpersist(blocking = false)
     }
-
+    bcastStrategy.destroy(blocking = false)
     scanFeature_train.unpersist
     scanFeature_test.unpersist
     println(s"[$getNowTime] Cascade Forest Training Finished!")

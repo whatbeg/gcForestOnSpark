@@ -10,6 +10,7 @@ object Utils {
   case class TrainParams(
     trainFile: String = "./data/uci_adult/sample_adult.data",
     testFile: String = "./data/uci_adult/sample_adult.test",
+    featuresFile: String = "./data/uci_adult/features",
     model: String = "./models/uci_adult",
     classNum: Int = 2,
     multiScanWindow: Array[Int] = Array(),
@@ -35,7 +36,8 @@ object Utils {
     probabilityCol: String = "probability",
     predictionCol: String = "prediction",
     featuresCol: String = "features",
-    labelCol: String = "label")
+    labelCol: String = "label",
+    idebug: Boolean = false)
 
   val trainParser = new OptionParser[TrainParams]("GCForest On Spark - UCI ADULT Example") {
     head("Train Multi-grain Scan Cascade Forest for UCI ADULT")
@@ -45,6 +47,9 @@ object Utils {
     opt[String]("test")
       .text("where you put your testing files, default: ./data/uci_adult/sample_adult.test")
       .action((x, c) => c.copy(testFile = x))
+    opt[String]("features")
+      .text("where you put your features files, default: ./data/uci_adult/sample_adult.test")
+      .action((x, c) => c.copy(featuresFile = x))
     opt[String]("model")
       .text("where you put your trained model, default: ./models/uci_adult")
       .action((x, c) => c.copy(model = x))
@@ -97,6 +102,9 @@ object Utils {
     opt[String]("debugLevel")
       .text("debug level you want to set, default: ERROR")
       .action((x, c) => c.copy(debugLevel = x))
+    opt[String]("idebug")
+      .text("if print debug infomation, default: n (y or n)")
+      .action((x, c) => c.copy(idebug = x == "y"))
     // other parameters do not need to change
   }
 }

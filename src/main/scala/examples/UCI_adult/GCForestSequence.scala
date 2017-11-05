@@ -16,11 +16,10 @@ object GCForestSequence {
 
     val spark = SparkSession.builder()
       .appName(this.getClass.getSimpleName)
-      .config("spark.executor.memory", "2g")
-      .config("spark.driver.memory", "2g")
-      .master("local[8]")
+      .master("local[*]")
       .getOrCreate()
 
+    println(spark.conf.getAll)
     println(s"Create Spark Context Succeed! Parallelism: ${spark.sparkContext.defaultParallelism}")
 
     trainParser.parse(args, TrainParams()).map(param => {
@@ -29,12 +28,12 @@ object GCForestSequence {
 
       val output = param.model
 
-      val train = new UCI_adult().load_data(spark, param.trainFile, 1)
+      val train = new UCI_adult().load_data(spark, param.trainFile, param.featuresFile, 1)
         .repartition(spark.sparkContext.defaultParallelism)
-
-      val test = new UCI_adult().load_data(spark, param.testFile, 1)
+      // if (param.idebug) println(s"train repartition ${spark.sparkContext.defaultParallelism}")
+      val test = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, 1)
         .repartition(spark.sparkContext.defaultParallelism)
-
+      // if (param.idebug) println(s"test repartition ${spark.sparkContext.defaultParallelism}")
       val gcForest = new GCForestClassifier()
         .setDataSize(param.dataSize)
         .setDataStyle(param.dataStyle)

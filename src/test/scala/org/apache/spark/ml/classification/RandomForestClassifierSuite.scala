@@ -16,8 +16,8 @@ class RandomForestClassifierSuite extends SparkUnitTest {
   test("Random Forest is really Random") {
     val resource = getClass.getClassLoader.getResource("test-data")
     val dataPrefix = resource.getPath + File.separator
-    val training = new UCI_adult().load_data(spark, dataPrefix + "sample_adult.data", 1)
-    val testing = new UCI_adult().load_data(spark, dataPrefix + "sample_adult.test", 1)
+    val training = new UCI_adult().load_data(spark, dataPrefix + "sample_adult.data", dataPrefix + "features", 1)
+    val testing = new UCI_adult().load_data(spark, dataPrefix + "sample_adult.test", dataPrefix + "features", 1)
     val acc_list = Range(0, 4).map { r =>
       val rf = new RandomForestClassifier()
         .setNumTrees(1)
