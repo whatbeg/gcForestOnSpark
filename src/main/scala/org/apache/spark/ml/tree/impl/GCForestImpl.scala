@@ -197,7 +197,7 @@ private[spark] object GCForestImpl extends Logging {
       strategy: GCForestStrategy,
       isScan: Boolean,
       message: String):
-  (DataFrame, DataFrame, Metric, Metric, RandomForestCARTModel) = {
+  (DataFrame, DataFrame, Metric, Metric, Array[RandomForestCARTModel]) = {
     val schema = bcastTraining.value.schema
     val sparkSession = bcastTraining.value.sparkSession
     var out_train: DataFrame = null // closure need
@@ -208,7 +208,7 @@ private[spark] object GCForestImpl extends Logging {
     // cross-validation for k classes distribution features
     var train_metric = new Accuracy(0, 0)
     val splits = MLUtils.kFold(bcastTraining.value.toDF.rdd, numFolds, seed * System.currentTimeMillis())
-    splits.zipWithIndex.foreach {
+    val models = splits.zipWithIndex.map {
       case ((t, v), splitIndex) =>
         val trainingDataset = sparkSession.createDataFrame(t, schema)
         val validationDataset = sparkSession.createDataFrame(v, schema)
@@ -234,12 +234,13 @@ private[spark] object GCForestImpl extends Logging {
           else out_test.join(test_result, Seq(strategy.instanceCol, strategy.labelCol))
 
         validationDataset.unpersist()
+        model
     }
     out_test = out_test.withColumn(strategy.featuresCol,
       UDF.mergeVectorForKfold(3)(Range(0, numFolds).map(k => col(strategy.featuresCol + s"$k")): _*))
       .select(strategy.instanceCol, strategy.labelCol, strategy.featuresCol)
     val test_metric = if (!isScan) Evaluator.evaluate(out_test) else new Accuracy(0, 0)
-    (out_train, out_test, train_metric, test_metric, rfc.fit(bcastTraining.value))
+    (out_train, out_test, train_metric, test_metric, models)
   }
 
   // create a random forest classifier by type
@@ -646,7 +647,7 @@ private[spark] object GCForestImpl extends Logging {
 
       println(s"[$getNowTime] Forests fitting and transforming ......")
 
-      erfModels += randomForests.zipWithIndex.map { case (rf, it) =>
+      erfModels ++= randomForests.zipWithIndex.map { case (rf, it) =>
         val st = bcastStrategy.value
         val transformed = cvClassVectorGeneratorWithValidation(
           bcastTraining, bcastTesting, rf, st.numFolds, st.seed, st,
@@ -674,8 +675,8 @@ private[spark] object GCForestImpl extends Logging {
           s"layer [$layer_id] - estimator [$it]  Test.predict = ${transformed._4}")
         if (st.idebug) {
           println("Model ==========================================")
-          println("total Number of Nodes: " + transformed._5.totalNumNodes)
-          println("First Tree Structure: " + transformed._5.trees(0).toDebugString)
+          println("total Number of Nodes: " + transformed._5.map(_.totalNumNodes).mkString(" , "))
+          println("First Tree Structure: " + transformed._5(0).trees(0).toDebugString)
           println("Model ==========================================")
         }
         transformed._5
