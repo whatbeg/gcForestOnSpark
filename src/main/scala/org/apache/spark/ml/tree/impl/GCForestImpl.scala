@@ -720,14 +720,14 @@ private[spark] object GCForestImpl extends Logging {
       if (strategy.earlyStopByTest) {
         if (opt_layer_id_test + 1 == layer_id)
           println(s"[$getNowTime] [Result] [Optimal Layer] max_layer_num = $layer_id " +
-            s"accuracy_train=${acc_list(0)(opt_layer_id_train)*100}% " +
-            s"accuracy_test=${acc_list(1)(opt_layer_id_test)*100}%")
+            "accuracy_train=%.3f %%, ".format(acc_list(0)(opt_layer_id_train)*100) +
+            "accuracy_test=%.3f %%".format(acc_list(1)(opt_layer_id_test)*100))
       }
       else {
         if (opt_layer_id_train + 1 == layer_id)
           println(s"[$getNowTime] [Result] [Optimal Layer] max_layer_num = $layer_id " +
-            s"accuracy_train = ${acc_list(0)(opt_layer_id_train) * 100}% " +
-            s"accuracy_test = ${acc_list(1)(opt_layer_id_test) * 100}%")
+            "accuracy_train=%.3f %%, ".format(acc_list(0)(opt_layer_id_train)*100) +
+            "accuracy_test=%.3f %%".format(acc_list(1)(opt_layer_id_test)*100))
       }
 
       lastPrediction = sparkSession.createDataFrame(predictRDDs(0), schema).persist(StorageLevel.MEMORY_AND_DISK_SER)
@@ -740,8 +740,8 @@ private[spark] object GCForestImpl extends Logging {
         println(s"[$getNowTime] " +
           s"[Result][Optimal Level Detected] opt_layer_id = " +
           s"${if (strategy.earlyStopByTest) opt_layer_id_test else opt_layer_id_train}, " +
-          s"accuracy_train=${acc_list(0)(opt_layer_id_train) * 100}%, " +
-          s"accuracy_test=${acc_list(1)(opt_layer_id_test) * 100}%")
+          "accuracy_train=%.3f %%, ".format(acc_list(0)(opt_layer_id_train)*100) +
+          "accuracy_test=%.3f %%".format(acc_list(1)(opt_layer_id_test)*100))
       reachMaxLayer = (layer_id == maxIteration) || outOfRounds
       if (reachMaxLayer)
         println(s"[$getNowTime] " +
