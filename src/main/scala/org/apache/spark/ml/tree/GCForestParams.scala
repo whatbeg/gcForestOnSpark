@@ -28,12 +28,12 @@ private[ml] trait GCForestParams extends HasSeed with HasTreeNumCol {
   setDefault(scanForestTreeNum -> 4)
   def setScanForestTreeNum(value: Int): this.type = set(scanForestTreeNum, value)
 
-  final val scanForestMinInstancesPerNode: IntParam = new IntParam(
+  final val scanMinInsPerNode: IntParam = new IntParam(
     this, "scanForestMinInstancesPerNode", "", (value: Int) => value > 0)
 
-  setDefault(scanForestMinInstancesPerNode -> 1)
+  setDefault(scanMinInsPerNode -> 1)
   def setScanForestMinInstancesPerNode(value: Int): this.type =
-    set(scanForestMinInstancesPerNode, value)
+    set(scanMinInsPerNode, value)
 
   final val MaxIteration: IntParam = new IntParam(
     this, "cascadeForestMaxIteration", "", (value: Int) => value > 0)
@@ -47,12 +47,12 @@ private[ml] trait GCForestParams extends HasSeed with HasTreeNumCol {
   setDefault(cascadeForestTreeNum -> 4)
   def setCascadeForestTreeNum(value: Int): this.type = set(cascadeForestTreeNum, value)
 
-  final val cascadeForestMinInstancesPerNode: IntParam = new IntParam(
+  final val cascadeMinInsPerNode: IntParam = new IntParam(
     this, "cascadeForestMinInstancesPerNode", "", (value: Int) => value > 0)
 
-  setDefault(cascadeForestMinInstancesPerNode -> 1)
+  setDefault(cascadeMinInsPerNode -> 1)
   def setCascadeForestMinInstancesPerNode(value: Int): this.type =
-    set(cascadeForestMinInstancesPerNode, value)
+    set(cascadeMinInsPerNode, value)
 
   final val MaxBins: IntParam =
     new IntParam(this, "randomForestMaxBins", "", (value: Int) => value > 0)
