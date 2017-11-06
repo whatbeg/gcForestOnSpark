@@ -22,6 +22,8 @@ case class GCForestStrategy(
                             var winCol: String = "windows",
                             var scanCol: String = "scan_id",
                             var forestIdCol: String = "forestNum",
+                            var idebug: Boolean = false,
+
                             var instanceCol: String = "instance",
                             var rawPredictionCol: String = "rawPrediction",
                             var probabilityCol: String = "probability",

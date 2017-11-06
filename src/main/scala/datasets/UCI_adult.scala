@@ -19,7 +19,11 @@ class UCI_adult extends BaseDatasets {
     * @param cate_as_onehot convert categorical data to one-hot format
     * @return loaded DataFrame
     */
-  def load_data(spark: SparkSession, phase: String, featuresPath: String, cate_as_onehot: Int): DataFrame = {
+  def load_data(spark: SparkSession,
+                phase: String,
+                featuresPath: String,
+                cate_as_onehot: Int,
+                repar: Int = 0): DataFrame = {
     val data_path =
       if (phase == "train") "data/uci_adult/sample_adult.data"
       else if (phase == "test") "data/uci_adult/sample_adult.test"
@@ -55,13 +59,14 @@ class UCI_adult extends BaseDatasets {
       Row.fromSeq(Seq[Any](label, data, idx))
     }
 
+    val repartitioned = if (repar > 0) dataRDD.repartition(repar) else dataRDD
     val schema = new StructType()
       .add(StructField("label", DoubleType))
       .add(StructField("features", ArrayType(DoubleType)))
       .add(StructField("instance", LongType))
 
     val arr2vec = udf {(features: Seq[Double]) => new DenseVector(features.toArray)}
-    spark.createDataFrame(dataRDD, schema)
+    spark.createDataFrame(repartitioned, schema)
       .withColumn("features", arr2vec(col("features")))
 
   }

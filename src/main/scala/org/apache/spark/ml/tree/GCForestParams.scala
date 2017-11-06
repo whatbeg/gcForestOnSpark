@@ -54,15 +54,15 @@ private[ml] trait GCForestParams extends HasSeed with HasTreeNumCol {
   def setCascadeForestMinInstancesPerNode(value: Int): this.type =
     set(cascadeForestMinInstancesPerNode, value)
 
-  final val randomForestMaxBins: IntParam =
+  final val MaxBins: IntParam =
     new IntParam(this, "randomForestMaxBins", "", (value: Int) => value > 0)
-  setDefault(randomForestMaxBins -> 32)
-  def setRandomForestMaxBins(value: Int): this.type = set(randomForestMaxBins, value)
+  setDefault(MaxBins -> 32)
+  def setMaxBins(value: Int): this.type = set(MaxBins, value)
 
-  final val randomForestMaxDepth: IntParam =
+  final val MaxDepth: IntParam =
     new IntParam(this, "randomForestMaxDepth", "", (value: Int) => value > 0)
-  setDefault(randomForestMaxDepth -> 30)
-  def setRandomForestMaxDepth(value: Int): this.type = set(randomForestMaxDepth, value)
+  setDefault(MaxDepth -> 30)
+  def setMaxDepth(value: Int): this.type = set(MaxDepth, value)
 
   final val numFolds: IntParam = new IntParam(this, "numFolds", "", (value: Int) => value > 0)
 
@@ -98,6 +98,11 @@ private[ml] trait GCForestParams extends HasSeed with HasTreeNumCol {
   final val forestIdCol: Param[String] =
     new Param[String](this, "forestIdCol", "forest id column name")
   setDefault(forestIdCol -> "forestNum")
+
+  final val idebug: Param[Boolean] = new Param[Boolean](this, "idebug", "if debug or not")
+  setDefault(idebug -> false)
+
+  def setIDebug(value: Boolean): this.type = set(idebug, value)
 
   def setSeed(value: Long): this.type = set(seed, value)
 }

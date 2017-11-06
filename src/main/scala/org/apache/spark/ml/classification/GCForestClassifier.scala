@@ -42,16 +42,22 @@ class GCForestClassifier(override val uid: String)
 
   override def setEarlyStoppingRounds(value: Int): this.type = set(earlyStoppingRounds, value)
 
+  override def setIDebug(value: Boolean): GCForestClassifier.this.type = set(idebug, value)
+
+  override def setMaxDepth(value: Int): this.type = set(MaxDepth, value)
+
+  override def setMaxBins(value: Int): GCForestClassifier.this.type = set(MaxBins, value)
+
   def getGCForestStrategy: GCForestStrategy = {
     GCForestStrategy($(classNum), $(multiScanWindow), $(dataSize), $(scanForestTreeNum),
       $(cascadeForestTreeNum), $(scanForestMinInstancesPerNode),
-      $(cascadeForestMinInstancesPerNode), $(randomForestMaxBins), $(randomForestMaxDepth),
+      $(cascadeForestMinInstancesPerNode), $(MaxBins), $(MaxDepth),
       $(MaxIteration), $(numFolds), $(earlyStoppingRounds), $(earlyStopByTest), $(dataStyle),
-      $(seed), $(windowCol), $(scanCol), $(forestIdCol))
+      $(seed), $(windowCol), $(scanCol), $(forestIdCol), $(idebug))
   }
 
   def getDefaultStrategy: GCForestStrategy = {
-    GCForestStrategy(2, Array(), Array(113))
+    GCForestStrategy(2, Array(), Array(113), idebug = false)
   }
 
   def train(trainset: Dataset[_], testset: Dataset[_]): GCForestClassificationModel = {
