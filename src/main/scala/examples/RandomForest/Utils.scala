@@ -18,7 +18,8 @@ object Utils {
                           maxDepth: Int = 30,
                           seed: Long = 123,
                           debugLevel: String = "ERROR",
-                          idebug: Boolean = false)
+                          idebug: Boolean = false,
+                          parallelism: Int = 0)
 
   val trainParser = new OptionParser[TrainParams]("GCForest On Spark - UCI ADULT Example") {
     head("Train Multi-grain Scan Cascade Forest for UCI ADULT")
@@ -58,6 +59,9 @@ object Utils {
     opt[String]("idebug")
       .text("if print debug infomation, default: n (y or n)")
       .action((x, c) => c.copy(idebug = x == "y"))
+    opt[Int]('p', "parallelism")
+      .text("parallelism you want to set, default: 0")
+      .action((x, c) => c.copy(parallelism = x))
     // other parameters do not need to change
   }
 }

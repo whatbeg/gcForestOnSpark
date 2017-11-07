@@ -4,7 +4,7 @@
 package examples.RandomForest
 
 import datasets.UCI_adult
-import org.apache.spark.ml.classification.{RandomForestCARTClassifier, RandomForestClassifier}
+import org.apache.spark.ml.classification.RandomForestClassifier
 import org.apache.spark.ml.evaluation.Evaluator
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.utils.engine.Engine
@@ -16,12 +16,9 @@ object RandomForestExample {
 
     val spark = SparkSession.builder()
       .appName(this.getClass.getSimpleName)
-      .master("local[*]")
+//      .master("local[*]")
       .getOrCreate()
 
-    //    println(spark.conf.getAll)
-    //    println(s"Engine getParallelism: ${Engine.getParallelism(spark.sparkContext)}")
-    //    println(s"Create Spark Context Succeed! Parallelism: ${spark.sparkContext.defaultParallelism}")
     val parallelism = Engine.getParallelism(spark.sparkContext)
     println(s"Create Spark Context Succeed! Parallelism is $parallelism")
     spark.conf.set("spark.default.parallelism", parallelism)
@@ -31,8 +28,10 @@ object RandomForestExample {
 
       spark.sparkContext.setLogLevel(param.debugLevel)
 
-      val train = new UCI_adult().load_data(spark, param.trainFile, param.featuresFile, 1, parallelism)
-      val test = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, 1, parallelism)
+      val train = new UCI_adult().load_data(spark, param.trainFile, param.featuresFile, 1,
+        if (param.parallelism > 0) param.parallelism else parallelism)
+      val test = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, 1,
+        if (param.parallelism > 0) param.parallelism else parallelism)
 
       val randomForest = new RandomForestClassifier()
         .setMaxBins(param.maxBins)
