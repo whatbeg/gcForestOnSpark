@@ -217,7 +217,7 @@ private[spark] object GCForestImpl extends Logging {
         trainingDataset.unpersist()
         // rawPrediction == probabilityCol
         val val_result = model.transform(validationDataset)
-          .drop(strategy.featuresCol).withColumnRenamed(strategy.probabilityCol, strategy.featuresCol)
+            .withColumnRenamed(strategy.probabilityCol, strategy.featuresCol)
         out_train = if (out_train == null) val_result else out_train.union(val_result)
 
         if (!isScan) {

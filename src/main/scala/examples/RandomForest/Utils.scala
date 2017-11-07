@@ -13,7 +13,7 @@ object Utils {
                           model: String = "./models/uci_adult",
                           classNum: Int = 2,
                           ForestTreeNum: Int = 500,
-                          MinInsPerNode: Int = 1,
+                          MinInsPerNode: Int = 2,
                           maxBins: Int = 32,
                           maxDepth: Int = 30,
                           seed: Long = 123,
@@ -21,8 +21,8 @@ object Utils {
                           idebug: Boolean = false,
                           parallelism: Int = 0)
 
-  val trainParser = new OptionParser[TrainParams]("GCForest On Spark - UCI ADULT Example") {
-    head("Train Multi-grain Scan Cascade Forest for UCI ADULT")
+  val trainParser = new OptionParser[TrainParams]("Random Forest On Spark - UCI ADULT Example") {
+    head("Train Random Forest for UCI ADULT")
     opt[String]("train")
       .text("where you put your training files, default: ./data/uci_adult/sample_adult.data")
       .action((x, c) => c.copy(trainFile = x))
@@ -42,7 +42,7 @@ object Utils {
       .text("scanning Forest tree Number, default: 2")
       .action((x, c) => c.copy(ForestTreeNum = x))
     opt[Int]("MinInsPerNode")
-      .text("scaning Forest Minimum Instances per Node, default: 1")
+      .text("Tree Minimum Instances per Node, default: 2")
       .action((x, c) => c.copy(MinInsPerNode = x))
     opt[Int]('b', "maxBins")
       .text("random Forest max Bins to split continuous features, default: 32")

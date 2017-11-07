@@ -8,7 +8,7 @@ import scopt.OptionParser
 
 object Utils {
   case class TrainParams(
-    trainFile: String = "./data/uci_adult/sample_adult.data",
+    trainFile: String = "./data/uci_adult/adult.data",
     testFile: String = "./data/uci_adult/sample_adult.test",
     featuresFile: String = "./data/uci_adult/features",
     model: String = "./models/uci_adult",
@@ -16,8 +16,8 @@ object Utils {
     multiScanWindow: Array[Int] = Array(),
     scanForestTreeNum: Int = 2,
     cascadeForestTreeNum: Int = 500,
-    scanMinInsPerNode: Int = 1,
-    cascadeMinInsPerNode: Int = 1,
+    scanMinInsPerNode: Int = 2,
+    cascadeMinInsPerNode: Int = 2,
     maxBins: Int = 32,
     maxDepth: Int = 30,
     maxIteration: Int = 10,
@@ -66,10 +66,10 @@ object Utils {
       .text("cascade Forest tree Number, default: 500")
       .action((x, c) => c.copy(cascadeForestTreeNum = x))
     opt[Int]("scanMinInsPerNode")
-      .text("scaning Forest Minimum Instances per Node, default: 1")
+      .text("scaning Forest Minimum Instances per Node, default: 2")
       .action((x, c) => c.copy(scanMinInsPerNode = x))
     opt[Int]("casMinInsPerNode")
-      .text("cascade Forest Minimum Instances per Node, default: 1")
+      .text("cascade Forest Minimum Instances per Node, default: 2")
       .action((x, c) => c.copy(cascadeMinInsPerNode = x))
     opt[Int]('b', "maxBins")
       .text("random Forest max Bins to split continuous features, default: 32")

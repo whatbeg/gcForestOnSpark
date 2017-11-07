@@ -32,9 +32,8 @@ object GCForestSequence {
       val output = param.model
 
       val train = new UCI_adult().load_data(spark, param.trainFile, param.featuresFile, 1, parallelism)
-//        .repartition(parallelism)
       val test = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, 1, parallelism)
-//        .repartition(parallelism)
+
       val gcForest = new GCForestClassifier()
         .setDataSize(param.dataSize)
         .setDataStyle(param.dataStyle)
