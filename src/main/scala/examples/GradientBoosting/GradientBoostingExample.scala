@@ -45,8 +45,10 @@ object GradientBoostingExample {
       predictions.select("prediction", "label", "features").show(5)
 
       val accuracy = Evaluator.evaluatePrediction(predictions)
-      println("Test Accuracy = " + accuracy)
+      println(s"[${getNowTime}] Test Accuracy = " + accuracy)
       if (param.idebug) println("Learned classification GBT model:\n" + model.toDebugString)
+      if (param.idebug) println("Total Num nodes: " + model.totalNumNodes)
+      if (param.idebug) println("Total Trees: " + model.getNumTrees)
       model
     })
     spark.stop()

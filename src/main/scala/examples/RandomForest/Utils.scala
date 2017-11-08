@@ -3,9 +3,14 @@
  */
 package examples.RandomForest
 
+import java.text.SimpleDateFormat
+import java.util.Date
+
 import scopt.OptionParser
 
 object Utils {
+  val dateFormat: SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS")
+  def getNowTime = dateFormat.format(new Date())
   case class TrainParams(
                           trainFile: String = "./data/uci_adult/sample_adult.data",
                           testFile: String = "./data/uci_adult/sample_adult.test",
