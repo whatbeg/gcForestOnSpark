@@ -617,10 +617,10 @@ private[spark] object GCForestImpl extends Logging {
       // scanFeatures_*: (instanceId, label, features)
       val training = mergeFeatureAndPredict(scanFeature_train, lastPrediction, strategy)
         .repartition(sc.defaultParallelism)
-        .persist(StorageLevel.MEMORY_AND_DISK_SER)
+        .persist(StorageLevel.MEMORY_ONLY_SER)
       val testing = mergeFeatureAndPredict(scanFeature_test, lastPrediction_test, strategy)
         .repartition(sc.defaultParallelism)
-        .persist(StorageLevel.MEMORY_AND_DISK_SER)
+        .persist(StorageLevel.MEMORY_ONLY_SER)
       val bcastTraining = sc.broadcast(training)
       val bcastTesting = sc.broadcast(testing)
       val features_dim = training.first().mkString.split(",").length
@@ -657,9 +657,7 @@ private[spark] object GCForestImpl extends Logging {
             .union(predict_test)
 
         layer_train_metric = layer_train_metric + transformed._3
-        // println(s"layer_train_metric RF_$it add ${transformed._3}")
         layer_test_metric = layer_test_metric + transformed._4
-        // println(s"layer_test_metric RF_$it add ${transformed._4}")
 
         println(s"[$getNowTime] [Estimator Summary] " +
           s"layer [$layer_id] - estimator [$it] Train.predict = ${transformed._3}")
@@ -722,9 +720,9 @@ private[spark] object GCForestImpl extends Logging {
             "accuracy_test=%.3f %%".format(acc_list(1)(opt_layer_id_test)*100))
       }
 
-      lastPrediction = sparkSession.createDataFrame(predictRDDs(0), schema).persist(StorageLevel.MEMORY_AND_DISK_SER)
+      lastPrediction = sparkSession.createDataFrame(predictRDDs(0), schema).persist(StorageLevel.MEMORY_ONLY_SER)
       lastPrediction_test = sparkSession.createDataFrame(predictRDDs(1), schema)
-        .persist(StorageLevel.MEMORY_AND_DISK_SER)
+        .persist(StorageLevel.MEMORY_ONLY_SER)
       val outOfRounds =
         (strategy.earlyStopByTest && layer_id - opt_layer_id_test >= strategy.earlyStoppingRounds) ||
         (!strategy.earlyStopByTest && layer_id - opt_layer_id_train >= strategy.earlyStoppingRounds)

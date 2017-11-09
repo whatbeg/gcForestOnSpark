@@ -8,7 +8,7 @@ import scopt.OptionParser
 
 object Utils {
   case class TrainParams(
-    trainFile: String = "./data/uci_adult/adult.data",
+    trainFile: String = "./data/uci_adult/adult_2000.data",
     testFile: String = "./data/uci_adult/sample_adult.test",
     featuresFile: String = "./data/uci_adult/features",
     model: String = "./models/uci_adult",
