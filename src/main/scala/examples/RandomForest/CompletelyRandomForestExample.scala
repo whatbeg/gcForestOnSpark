@@ -4,19 +4,19 @@
 package examples.RandomForest
 
 import datasets.UCI_adult
-import org.apache.spark.ml.classification.RandomForestCARTClassifier
+import org.apache.spark.ml.classification.CompletelyRandomForestClassifier
 import org.apache.spark.ml.evaluation.Evaluator
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.utils.engine.Engine
 
-object RandomForestExample {
+object CompletelyRandomForestExample {
   def main(args: Array[String]): Unit = {
 
     import Utils._
 
     val spark = SparkSession.builder()
       .appName(this.getClass.getSimpleName)
-//      .master("local[*]")
+      .master("local[*]")
       .getOrCreate()
 
     val parallelism = Engine.getParallelism(spark.sparkContext)
@@ -33,7 +33,7 @@ object RandomForestExample {
       val test = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, 1,
         if (param.parallelism > 0) param.parallelism else parallelism)
 
-      val randomForest = new RandomForestCARTClassifier()
+      val randomForest = new CompletelyRandomForestClassifier()
         .setMaxBins(param.maxBins)
         .setMaxDepth(param.maxDepth)
         .setMinInstancesPerNode(param.MinInsPerNode)

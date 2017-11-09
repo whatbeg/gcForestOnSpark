@@ -791,8 +791,7 @@ private [spark] object CompletelyRandomForestImpl extends Logging {
             ImpurityStats.getInvalidImpurityStats(parentImpurityCalculator))
         }
       } else {
-        val random_index = allRand.nextInt(featureSplitsAndImpurityStats.length)
-        featureSplitsAndImpurityStats(random_index)
+        featureSplitsAndImpurityStats.maxBy(_._2.gain)
       }
     (randomSplit, randomSplitStats)
   }
