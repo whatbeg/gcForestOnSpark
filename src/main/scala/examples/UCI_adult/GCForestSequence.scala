@@ -43,6 +43,7 @@ object GCForestSequence {
         .setMaxIteration(param.maxIteration)
         .setMaxDepth(param.maxDepth)
         .setMaxBins(param.maxBins)
+        .setCacheNodeId(param.cacheNodeId)
         .setScanForestMinInstancesPerNode(param.scanMinInsPerNode)
         .setCascadeForestMinInstancesPerNode(param.cascadeMinInsPerNode)
         .setEarlyStoppingRounds(param.earlyStoppingRounds)

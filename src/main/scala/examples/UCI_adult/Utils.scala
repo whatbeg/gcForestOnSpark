@@ -27,6 +27,7 @@ object Utils {
     dataStyle: String = "Seq",
     dataSize: Array[Int] = Array(113),
     seed: Long = 123,
+    cacheNodeId: Boolean = true,
     debugLevel: String = "ERROR",
     winCol: String = "windows",
     scanCol: String = "scan_id",
@@ -99,6 +100,9 @@ object Utils {
     opt[Long]("seed")
       .text("random seed, default: 123L")
       .action((x, c) => c.copy(seed = x))
+    opt[String]("cacheNodeId")
+      .text("cache node id or not, default: true")
+      .action((x, c) => c.copy(cacheNodeId = x == "y"))
     opt[String]("debugLevel")
       .text("debug level you want to set, default: ERROR")
       .action((x, c) => c.copy(debugLevel = x))

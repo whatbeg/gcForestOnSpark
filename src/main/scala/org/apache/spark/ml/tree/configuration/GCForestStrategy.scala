@@ -19,6 +19,7 @@ case class GCForestStrategy(
                             var earlyStopByTest: Boolean = true,
                             var dataStyle: String = "Seq",
                             var seed: Long = 123L,
+                            var cacheNodeId: Boolean = true,
                             var winCol: String = "windows",
                             var scanCol: String = "scan_id",
                             var forestIdCol: String = "forestNum",

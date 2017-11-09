@@ -12,8 +12,8 @@ object Utils {
   val dateFormat: SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS")
   def getNowTime = dateFormat.format(new Date())
   case class TrainParams(
-                          trainFile: String = "./data/uci_adult/sample_adult.data",
-                          testFile: String = "./data/uci_adult/sample_adult.test",
+                          trainFile: String = "./data/uci_adult/adult_2000.data",
+                          testFile: String = "./data/uci_adult/adult_1000.test",
                           featuresFile: String = "./data/uci_adult/features",
                           model: String = "./models/uci_adult",
                           classNum: Int = 2,
@@ -22,6 +22,7 @@ object Utils {
                           maxBins: Int = 32,
                           maxDepth: Int = 30,
                           seed: Long = 123,
+                          cacheNodeId: Boolean = false,
                           debugLevel: String = "ERROR",
                           idebug: Boolean = false,
                           parallelism: Int = 0)
@@ -44,7 +45,7 @@ object Utils {
       .text("number of Classes, default: 2")
       .action((x, c) => c.copy(classNum = x))
     opt[Int]("treeNum")
-      .text("scanning Forest tree Number, default: 2")
+      .text("Forest tree Number, default: 500")
       .action((x, c) => c.copy(ForestTreeNum = x))
     opt[Int]("MinInsPerNode")
       .text("Tree Minimum Instances per Node, default: 2")
@@ -58,6 +59,9 @@ object Utils {
     opt[Long]("seed")
       .text("random seed, default: 123L")
       .action((x, c) => c.copy(seed = x))
+    opt[String]("cacheNodeId")
+      .text("cache node id or not, default: false")
+      .action((x, c) => c.copy(cacheNodeId = x == "y"))
     opt[String]("debugLevel")
       .text("debug level you want to set, default: ERROR")
       .action((x, c) => c.copy(debugLevel = x))

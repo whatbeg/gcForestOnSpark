@@ -105,4 +105,9 @@ private[ml] trait GCForestParams extends HasSeed with HasTreeNumCol {
   def setIDebug(value: Boolean): this.type = set(idebug, value)
 
   def setSeed(value: Long): this.type = set(seed, value)
+
+  final val cacheNodeId: Param[Boolean] = new Param[Boolean](this, "cacheNodeId", "if cache node id or not")
+  setDefault(cacheNodeId -> true)
+
+  def setCacheNodeId(value: Boolean): this.type = set(cacheNodeId, value)
 }

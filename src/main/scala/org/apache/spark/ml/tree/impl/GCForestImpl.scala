@@ -245,21 +245,20 @@ private[spark] object GCForestImpl extends Logging {
 
   // create a random forest classifier by type
   def genRFClassifier(rfType: String,
-                      treeNum: Int,
-                      maxBins: Int,
-                      maxDepth: Int,
-                      minInstancePerNode: Int,
+                      strategy: GCForestStrategy,
+                      isScan: Boolean,
                       num: Int): RandomForestCARTClassifier = {
     val rf = rfType match {
       case "rfc" => new RandomForestCARTClassifier()
       case "crfc" => new CompletelyRandomForestClassifier()
     }
 
-    rf.setNumTrees(treeNum)
-      .setMaxBins(maxBins)
-      .setMaxDepth(maxDepth)
-      .setMinInstancesPerNode(minInstancePerNode)
+    rf.setNumTrees(if (isScan) strategy.scanForestTreeNum else strategy.cascadeForestTreeNum)
+      .setMaxBins(strategy.maxBins)
+      .setMaxDepth(strategy.maxDepth)
+      .setMinInstancesPerNode(if (isScan) strategy.scanMinInsPerNode else strategy.cascadeMinInsPerNode)
       .setFeatureSubsetStrategy("sqrt")
+      .setCacheNodeIds(strategy.cacheNodeId)
       .setSeed(System.currentTimeMillis() + num*123L + rfType.hashCode % num)
   }
 
@@ -384,8 +383,7 @@ private[spark] object GCForestImpl extends Logging {
         val windowInstances = extractMatrixRDD(dataset, w, h, strategy.dataSize, strategy.featuresCol, strategy.winCol)
 
         val rfc =
-          genRFClassifier("rfc", strategy.maxBins, strategy.maxDepth, strategy.scanForestTreeNum,
-            strategy.scanMinInsPerNode, 0)
+          genRFClassifier("rfc", strategy, isScan = true, 0)
         var (rfcFeature, _, rfcModel) =
           cvClassVectorGenerator(windowInstances, rfc, strategy.numFolds, strategy.seed, strategy,
             isScan = true, "Scan 1")
@@ -394,8 +392,7 @@ private[spark] object GCForestImpl extends Logging {
         scanFeatures += rfcFeature
 
         val crfc =
-          genRFClassifier("crfc", strategy.maxBins, strategy.maxDepth, strategy.scanForestTreeNum,
-            strategy.scanMinInsPerNode, 1)
+          genRFClassifier("crfc", strategy, isScan = true, 1)
         var (crfcFeature, _, crfcModel) =
           cvClassVectorGenerator(windowInstances, crfc, strategy.numFolds, strategy.seed, strategy,
             isScan = true, "Scan 2")
@@ -416,8 +413,7 @@ private[spark] object GCForestImpl extends Logging {
           strategy.featuresCol, strategy.winCol)
 
         val rfc =
-          genRFClassifier("rfc", strategy.maxBins, strategy.maxDepth, strategy.scanForestTreeNum,
-            strategy.scanMinInsPerNode, 0)
+          genRFClassifier("rfc", strategy, isScan = true, 0)
         var (rfcFeature, _, rfcModel) =
           cvClassVectorGenerator(windowInstances, rfc, strategy.numFolds, strategy.seed, strategy,
             isScan = true, "Scan 1")
@@ -426,8 +422,7 @@ private[spark] object GCForestImpl extends Logging {
         scanFeatures += rfcFeature
 
         val crfc =
-          genRFClassifier("crfc", strategy.maxBins, strategy.maxDepth, strategy.scanForestTreeNum,
-            strategy.scanMinInsPerNode, 1)
+          genRFClassifier("crfc", strategy, isScan = true, 1)
         var (crfcFeature, _, crfcModel) =
           cvClassVectorGenerator(windowInstances, crfc, strategy.numFolds, strategy.seed, strategy,
             isScan = true, "Scan 2")
@@ -481,11 +476,9 @@ private[spark] object GCForestImpl extends Logging {
 
       println(s"[$getNowTime] Training Cascade Forest Layer $layer_id")
 
-      val randomForests = (Range(0, 4).map ( it => genRFClassifier("rfc", strategy.cascadeForestTreeNum,
-        strategy.maxBins, strategy.maxDepth, strategy.cascadeMinInsPerNode, rng.nextInt + it) )
+      val randomForests = (Range(0, 4).map ( it => genRFClassifier("rfc", strategy, isScan = false, rng.nextInt + it))
         ++
-        Range(4, 8).map ( it => genRFClassifier("crfc", strategy.cascadeForestTreeNum, strategy.maxBins,
-          strategy.maxDepth, strategy.cascadeMinInsPerNode, rng.nextInt + it))
+        Range(4, 8).map ( it => genRFClassifier("crfc", strategy, isScan = false, rng.nextInt + it))
       ).toArray[RandomForestCARTClassifier]
       assert(randomForests.length == 8, "random Forests inValid!")
       // scanFeatures_*: (instanceId, label, features)
@@ -615,11 +608,9 @@ private[spark] object GCForestImpl extends Logging {
 
       println(s"[$getNowTime] Training Cascade Forest Layer $layer_id")
 
-      val randomForests = (Range(0, 4).map ( it => genRFClassifier("rfc", strategy.cascadeForestTreeNum,
-        strategy.maxBins, strategy.maxDepth, strategy.cascadeMinInsPerNode, rng.nextInt + it) )
+      val randomForests = (Range(0, 4).map ( it => genRFClassifier("rfc", strategy, isScan = false, rng.nextInt + it))
         ++
-        Range(4, 8).map ( it => genRFClassifier("crfc", strategy.cascadeForestTreeNum, strategy.maxBins,
-          strategy.maxDepth, strategy.cascadeMinInsPerNode, rng.nextInt + it))
+        Range(4, 8).map ( it => genRFClassifier("crfc", strategy, isScan = false, rng.nextInt + it))
         ).toArray[RandomForestCARTClassifier]
       assert(randomForests.length == 8, "random Forests inValid!")
       // scanFeatures_*: (instanceId, label, features)

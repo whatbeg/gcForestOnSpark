@@ -54,11 +54,13 @@ class GCForestClassifier(override val uid: String)
   override def setCascadeForestMinInstancesPerNode(value: Int):
   GCForestClassifier.this.type = set(cascadeMinInsPerNode, value)
 
+  override def setCacheNodeId(value: Boolean): GCForestClassifier.this.type = set(cacheNodeId, value)
+
   def getGCForestStrategy: GCForestStrategy = {
     GCForestStrategy($(classNum), $(multiScanWindow), $(dataSize), $(scanForestTreeNum),
       $(cascadeForestTreeNum), $(scanMinInsPerNode), $(cascadeMinInsPerNode), $(MaxBins), $(MaxDepth),
       $(MaxIteration), $(numFolds), $(earlyStoppingRounds), $(earlyStopByTest), $(dataStyle),
-      $(seed), $(windowCol), $(scanCol), $(forestIdCol), $(idebug))
+      $(seed), $(cacheNodeId), $(windowCol), $(scanCol), $(forestIdCol), $(idebug))
   }
 
   def getDefaultStrategy: GCForestStrategy = {

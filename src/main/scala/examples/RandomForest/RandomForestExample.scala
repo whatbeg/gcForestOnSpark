@@ -4,7 +4,7 @@
 package examples.RandomForest
 
 import datasets.UCI_adult
-import org.apache.spark.ml.classification.RandomForestClassifier
+import org.apache.spark.ml.classification.{RandomForestCARTClassifier, RandomForestClassifier}
 import org.apache.spark.ml.evaluation.Evaluator
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.utils.engine.Engine
@@ -33,23 +33,24 @@ object RandomForestExample {
       val test = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, 1,
         if (param.parallelism > 0) param.parallelism else parallelism)
 
-      val randomForest = new RandomForestClassifier()
+      val randomForest = new RandomForestCARTClassifier()
         .setMaxBins(param.maxBins)
         .setMaxDepth(param.maxDepth)
         .setMinInstancesPerNode(param.MinInsPerNode)
         .setNumTrees(param.ForestTreeNum)
         .setSeed(param.seed)
+        .setCacheNodeIds(param.cacheNodeId)
 
       val model = randomForest.fit(train)
 
       val predictions = model.transform(test)
 
       // Select example rows to display.
-      predictions.select("prediction", "label", "features").show(5)
-      val accuracy = Evaluator.evaluatePrediction(predictions)
+      predictions.select("probability", "label", "features").show(5)
+      val accuracy = Evaluator.evaluate(predictions.withColumnRenamed("probability", "features"))
 
       println(s"[${getNowTime}] Test Accuracy = " + accuracy)
-      if (param.idebug) println("Learned classification GBT model:\n" + model.toDebugString)
+      if (param.idebug) println("Learned classification Random Forest model:\n" + model.toDebugString)
 
       model
     })
