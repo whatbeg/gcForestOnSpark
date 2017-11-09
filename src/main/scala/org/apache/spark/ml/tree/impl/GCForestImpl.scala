@@ -6,6 +6,7 @@ package org.apache.spark.ml.tree.impl
 import java.text.SimpleDateFormat
 import java.util.Date
 
+import org.apache.spark.HashPartitioner
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.internal.Logging
 import org.apache.spark.ml.classification._
@@ -216,7 +217,7 @@ private[spark] object GCForestImpl extends Logging {
 
         trainingDataset.unpersist()
         // rawPrediction == probabilityCol
-        val val_result = model.transform(validationDataset)
+        val val_result = model.transform(validationDataset).drop(strategy.featuresCol)
             .withColumnRenamed(strategy.probabilityCol, strategy.featuresCol)
         out_train = if (out_train == null) val_result else out_train.union(val_result)
 
