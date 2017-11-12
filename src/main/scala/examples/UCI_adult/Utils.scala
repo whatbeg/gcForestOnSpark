@@ -8,7 +8,7 @@ import scopt.OptionParser
 
 object Utils {
   case class TrainParams(
-    trainFile: String = "./data/uci_adult/adult.data",
+    trainFile: String = "./data/uci_adult/sample_adult.data",
     testFile: String = "./data/uci_adult/sample_adult.test",
     featuresFile: String = "./data/uci_adult/features",
     model: String = "./models/uci_adult",
@@ -21,7 +21,7 @@ object Utils {
     maxBins: Int = 32,
     maxDepth: Int = 30,
     maxIteration: Int = 10,
-    maxMemoryInMB: Int = 1024,
+    maxMemoryInMB: Int = 2048,
     numFolds: Int = 3,
     earlyStoppingRounds: Int = 4,
     earlyStopByTest: Boolean = true,

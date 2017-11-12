@@ -626,7 +626,10 @@ private[spark] object GCForestImpl extends Logging {
 
       println(s"[$getNowTime] Training Cascade Forest Layer $layer_id")
 
-      val randomForests = (Range(0, 4).map ( it => genRFClassifier("rfc", strategy, isScan = false, rng.nextInt + it))
+      val randomForests = (
+//        Range(0, 2).map ( it => genGBTClassifier("gbt", strategy, isScan = false, rng.nextInt + it))
+//        ++
+        Range(0, 4).map ( it => genRFClassifier("rfc", strategy, isScan = false, rng.nextInt + it))
         ++
         Range(4, 8).map ( it => genRFClassifier("crfc", strategy, isScan = false, rng.nextInt + it))
         ).toArray[RandomForestCARTClassifier]
