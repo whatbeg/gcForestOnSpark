@@ -710,14 +710,14 @@ private[spark] object GCForestImpl extends Logging {
       if (strategy.earlyStopByTest) {
         if (opt_layer_id_test + 1 == layer_id)
           println(s"[$getNowTime] [Result] [Optimal Layer] max_layer_num = $layer_id " +
-            "accuracy_train=%.3f %%, ".format(acc_list(0)(opt_layer_id_train)*100) +
-            "accuracy_test=%.3f %%".format(acc_list(1)(opt_layer_id_test)*100))
+            "accuracy_train=%.3f%%, ".format(acc_list(0)(opt_layer_id_train)*100) +
+            "accuracy_test=%.3f%%".format(acc_list(1)(opt_layer_id_test)*100))
       }
       else {
         if (opt_layer_id_train + 1 == layer_id)
           println(s"[$getNowTime] [Result] [Optimal Layer] max_layer_num = $layer_id " +
-            "accuracy_train=%.3f %%, ".format(acc_list(0)(opt_layer_id_train)*100) +
-            "accuracy_test=%.3f %%".format(acc_list(1)(opt_layer_id_test)*100))
+            "accuracy_train=%.3f%%, ".format(acc_list(0)(opt_layer_id_train)*100) +
+            "accuracy_test=%.3f%%".format(acc_list(1)(opt_layer_id_test)*100))
       }
 
       lastPrediction = sparkSession.createDataFrame(predictRDDs(0), schema).persist(StorageLevel.MEMORY_ONLY_SER)

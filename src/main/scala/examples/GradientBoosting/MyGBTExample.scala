@@ -4,12 +4,12 @@
 package examples.GradientBoosting
 
 import datasets.UCI_adult
-import org.apache.spark.ml.classification.GBTClassifier
+import org.apache.spark.ml.classification.GradientBoostingTreeClassifier
 import org.apache.spark.ml.evaluation.Evaluator
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.utils.engine.Engine
 
-object GradientBoostingExample {
+object MyGBTExample {
   def main(args: Array[String]): Unit = {
 
     import Utils._
@@ -33,7 +33,7 @@ object GradientBoostingExample {
       val testData = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, 1,
         if (param.parallelism > 0) param.parallelism else parallelism)
 
-      val gbt = new GBTClassifier()
+      val gbt = new GradientBoostingTreeClassifier()
         .setMaxIter(param.numIteration)
         .setMaxBins(param.maxBins)
         .setLabelCol("label")
@@ -42,9 +42,9 @@ object GradientBoostingExample {
       val model = gbt.fit(trainingData)
       // Evaluate model on test instances and compute test error
       val predictions = model.transform(testData)
-      predictions.select("prediction", "label", "features").show(5)
+      predictions.select("probability", "label", "features").show(5)
 
-      val accuracy = Evaluator.evaluatePrediction(predictions)
+      val accuracy = Evaluator.evaluate(predictions.withColumnRenamed("probability", "features"))
       println(s"[${getNowTime}] Test Accuracy = " + accuracy)
       if (param.idebug) println("Learned classification GBT model:\n" + model.toDebugString)
       if (param.idebug) println("Total Num nodes: " + model.totalNumNodes)
