@@ -14,6 +14,7 @@ case class GCForestStrategy(
                             var maxBins: Int = 32,
                             var maxDepth: Int = 30,
                             var maxIteration: Int = 2,
+                            var maxMemoryInMB: Int = 256,
                             var numFolds: Int = 3,
                             var earlyStoppingRounds: Int = 4,
                             var earlyStopByTest: Boolean = true,

@@ -260,7 +260,24 @@ private[spark] object GCForestImpl extends Logging {
       .setMinInstancesPerNode(if (isScan) strategy.scanMinInsPerNode else strategy.cascadeMinInsPerNode)
       .setFeatureSubsetStrategy("sqrt")
       .setCacheNodeIds(strategy.cacheNodeId)
+      .setMaxMemoryInMB(strategy.maxMemoryInMB)
       .setSeed(System.currentTimeMillis() + num*123L + rfType.hashCode % num)
+  }
+
+  // create a gradient boosting classifier by type
+  def genGBTClassifier(rfType: String,
+                       strategy: GCForestStrategy,
+                       isScan: Boolean,
+                       num: Int): GradientBoostingTreeClassifier = {
+    val rf = rfType match {
+      case "gbt" => new GradientBoostingTreeClassifier()
+    }
+
+    rf.setSeed(System.currentTimeMillis() + num*123L + rfType.hashCode % num)
+      .setCacheNodeIds(strategy.cacheNodeId)
+      .setMinInfoGain(10e-7)
+      .setMinInstancesPerNode(strategy.cascadeMinInsPerNode)
+      .setMaxMemoryInMB(strategy.maxMemoryInMB)
   }
 
   /**

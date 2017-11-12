@@ -14,7 +14,6 @@ object GCForestSequence {
 
     import Utils._
 
-
     val spark = SparkSession.builder()
       .appName(this.getClass.getSimpleName)
 //      .master("local[*]")
@@ -43,6 +42,7 @@ object GCForestSequence {
         .setMaxIteration(param.maxIteration)
         .setMaxDepth(param.maxDepth)
         .setMaxBins(param.maxBins)
+        .setMaxMemoryInMB(param.maxMemoryInMB)
         .setCacheNodeId(param.cacheNodeId)
         .setScanForestMinInstancesPerNode(param.scanMinInsPerNode)
         .setCascadeForestMinInstancesPerNode(param.cascadeMinInsPerNode)

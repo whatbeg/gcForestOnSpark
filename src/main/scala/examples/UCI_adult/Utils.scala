@@ -8,7 +8,7 @@ import scopt.OptionParser
 
 object Utils {
   case class TrainParams(
-    trainFile: String = "./data/uci_adult/adult_2000.data",
+    trainFile: String = "./data/uci_adult/adult.data",
     testFile: String = "./data/uci_adult/sample_adult.test",
     featuresFile: String = "./data/uci_adult/features",
     model: String = "./models/uci_adult",
@@ -21,6 +21,7 @@ object Utils {
     maxBins: Int = 32,
     maxDepth: Int = 30,
     maxIteration: Int = 10,
+    maxMemoryInMB: Int = 1024,
     numFolds: Int = 3,
     earlyStoppingRounds: Int = 4,
     earlyStopByTest: Boolean = true,
@@ -81,6 +82,9 @@ object Utils {
     opt[Int]('i', "maxIteration")
       .text("max Iteration to grow cascade Forests, default: 10")
       .action((x, c) => c.copy(maxIteration = x))
+    opt[Int]('m', "maxMemoryInMB")
+      .text("max memory to histogram aggregates, default: 256")
+      .action((x, c) => c.copy(maxMemoryInMB = x))
     opt[Int]("numFolds")
       .text("number of Cross Validation Folds to generator class vectors, default: 3")
       .action((x, c) => c.copy(numFolds = x))

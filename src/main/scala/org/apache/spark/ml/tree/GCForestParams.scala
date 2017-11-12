@@ -110,4 +110,9 @@ private[ml] trait GCForestParams extends HasSeed with HasTreeNumCol {
   setDefault(cacheNodeId -> true)
 
   def setCacheNodeId(value: Boolean): this.type = set(cacheNodeId, value)
+
+  final val maxMemoryInMB: Param[Int] = new Param[Int](this, "maxMemoryInMB", "max memory to histogram aggregates")
+  setDefault(maxMemoryInMB -> 256)
+
+  def setMaxMemoryInMB(value: Int): this.type = set(maxMemoryInMB, value)
 }
