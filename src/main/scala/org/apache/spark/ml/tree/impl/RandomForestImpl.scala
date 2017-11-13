@@ -78,7 +78,8 @@ private[spark] object RandomForestImpl extends Logging {
           seed: Long,
           instr: Option[Instrumentation[_]],
           parentUID: Option[String] = None): Array[DecisionTreeModel] = {
-
+    // register KryoClasses
+    input.sparkContext.conf.registerKryoClasses(Array(classOf[DTStatsAggregator], classOf[ImpurityStats]))
     val timer = new TimeTracker()
 
     timer.start("total")
@@ -189,8 +190,8 @@ private[spark] object RandomForestImpl extends Logging {
 
     timer.stop("total")
 
-    logInfo("Internal timing for DecisionTree:")
-    logInfo(s"$timer")
+    println("Internal timing for DecisionTree:")
+    println(s"$timer")
 
     // Delete any remaining checkpoints used for node Id cache.
     if (nodeIdCache.nonEmpty) {

@@ -3,7 +3,7 @@
  */
 package examples.UCI_adult
 
-import org.apache.spark.ml.classification.GCForestClassifier
+import org.apache.spark.ml.classification.{GCForestClassifier, RandomForestCARTClassifier}
 import datasets.UCI_adult
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.utils.engine.Engine
@@ -23,6 +23,8 @@ object GCForestSequence {
     println(s"Create Spark Context Succeed! Parallelism is $parallelism")
     spark.conf.set("spark.default.parallelism", parallelism)
     spark.conf.set("spark.locality.wait.node", 0)
+    spark.conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    spark.sparkContext.getConf.registerKryoClasses(Array(classOf[RandomForestCARTClassifier]))
 
     trainParser.parse(args, TrainParams()).map(param => {
 
