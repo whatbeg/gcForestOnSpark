@@ -25,17 +25,17 @@ import scala.util.Random
 private[spark] object GCBoostedTreeImpl extends Logging {
 
   def run(
-           input: Dataset[_],
-           gcforestStategy: GCForestStrategy
-         ): GCBoostedTreeClassificationModel = {
+       input: Dataset[_],
+       gcforestStategy: GCForestStrategy
+     ): GCBoostedTreeClassificationModel = {
     train(input, strategy = gcforestStategy)
   }
 
   def runWithValidation(
-                         input: Dataset[_],
-                         validationInput: Dataset[_],
-                         gCForestStrategy: GCForestStrategy
-                       ): GCBoostedTreeClassificationModel = {
+       input: Dataset[_],
+       validationInput: Dataset[_],
+       gCForestStrategy: GCForestStrategy
+     ): GCBoostedTreeClassificationModel = {
     trainWithValidation(input, validationInput, gCForestStrategy)
   }
 
@@ -189,30 +189,30 @@ private[spark] object GCBoostedTreeImpl extends Logging {
   }
 
   def cvClassVectorGeneratorWithValidation(
-      bcastTraining: Broadcast[DataFrame],
-      bcastTesting: Broadcast[DataFrame],
-      rfc: GradientBoostingTreeClassifier,
+      training: Dataset[_],
+      testing: Dataset[_],
+      gbtc: GradientBoostingTreeClassifier,
       numFolds: Int,
       seed: Long,
       strategy: GCForestStrategy,
       isScan: Boolean,
       message: String):
   (DataFrame, DataFrame, Metric, Metric, Array[GradientBoostingClassificationModel]) = {
-    val schema = bcastTraining.value.schema
-    val sparkSession = bcastTraining.value.sparkSession
+    val schema = training.schema
+    val sparkSession = training.sparkSession
     var out_train: DataFrame = null // closure need
     var out_test: DataFrame = null // closure need
 
-    require(bcastTraining.value.schema.equals(bcastTesting.value.schema))
+    require(schema.equals(testing.schema))
 
     // cross-validation for k classes distribution features
     var train_metric = new Accuracy(0, 0)
-    val splits = MLUtils.kFold(bcastTraining.value.toDF.rdd, numFolds, seed * System.currentTimeMillis())
+    val splits = MLUtils.kFold(training.toDF.rdd, numFolds, seed * System.currentTimeMillis())
     val models = splits.zipWithIndex.map {
       case ((t, v), splitIndex) =>
         val trainingDataset = sparkSession.createDataFrame(t, schema)
         val validationDataset = sparkSession.createDataFrame(v, schema)
-        val model = rfc.fit(trainingDataset)
+        val model = gbtc.fit(trainingDataset)
 
         trainingDataset.unpersist()
         // rawPrediction == probabilityCol
@@ -227,7 +227,7 @@ private[spark] object GCBoostedTreeImpl extends Logging {
           println(s"[$getNowTime] $message ${numFolds}_folds.train_$splitIndex = $val_acc")
         }
 
-        val test_result = model.transform(bcastTesting.value)
+        val test_result = model.transform(testing)
           .withColumnRenamed(strategy.probabilityCol, strategy.featuresCol+s"$splitIndex")
           .select(strategy.instanceCol, strategy.labelCol, strategy.featuresCol+s"$splitIndex")
         out_test = if (out_test == null) test_result
@@ -618,7 +618,6 @@ private[spark] object GCBoostedTreeImpl extends Logging {
     require(maxIteration > 0, "Non-positive maxIteration")
     var layer_id = 1
     var reachMaxLayer = false
-    val bcastStrategy = sc.broadcast(strategy)
 
     while (!reachMaxLayer) {
 
@@ -634,8 +633,7 @@ private[spark] object GCBoostedTreeImpl extends Logging {
       val testing = mergeFeatureAndPredict(scanFeature_test, lastPrediction_test, strategy)
         .repartition(sc.defaultParallelism)
         .persist(StorageLevel.MEMORY_ONLY_SER)
-      val bcastTraining = sc.broadcast(training)
-      val bcastTesting = sc.broadcast(testing)
+
       val features_dim = training.first().mkString.split(",").length
 
       println(s"[$getNowTime] Training Set = ($n_train, $features_dim), " +
@@ -653,16 +651,15 @@ private[spark] object GCBoostedTreeImpl extends Logging {
       println(s"[$getNowTime] Forests fitting and transforming ......")
 
       erfModels ++= randomForests.zipWithIndex.map { case (rf, it) =>
-        val st = bcastStrategy.value
         val transformed = cvClassVectorGeneratorWithValidation(
-          bcastTraining, bcastTesting, rf, st.numFolds, st.seed, st,
+          training, testing, rf, strategy.numFolds, strategy.seed, strategy,
           isScan = false, s"layer [$layer_id] - estimator [$it]")
         val predict = transformed._1
-          .withColumn(st.forestIdCol, lit(it))
-          .select(st.instanceCol, st.featuresCol, st.forestIdCol)
+          .withColumn(strategy.forestIdCol, lit(it))
+          .select(strategy.instanceCol, strategy.featuresCol, strategy.forestIdCol)
         val predict_test = transformed._2
-          .withColumn(st.forestIdCol, lit(it))
-          .select(st.instanceCol, st.featuresCol, st.forestIdCol)
+          .withColumn(strategy.forestIdCol, lit(it))
+          .select(strategy.instanceCol, strategy.featuresCol, strategy.forestIdCol)
         ensemblePredict =
           if (ensemblePredict == null) predict else ensemblePredict.union(predict)
         ensemblePredict_test =
@@ -676,7 +673,7 @@ private[spark] object GCBoostedTreeImpl extends Logging {
           s"layer [$layer_id] - estimator [$it] Train.predict = ${transformed._3}")
         println(s"[$getNowTime] [Estimator Summary] " +
           s"layer [$layer_id] - estimator [$it]  Test.predict = ${transformed._4}")
-        if (st.idebug) {
+        if (strategy.idebug) {
           println("Model ==========================================")
           println("total Number of Nodes: " + transformed._5.map(_.totalNumNodes).mkString(" , "))
           println("First Tree Structure: " + transformed._5(0).trees(0).toDebugString)
@@ -695,21 +692,21 @@ private[spark] object GCBoostedTreeImpl extends Logging {
       acc_list(1) += layer_test_metric.getAccuracy
 
       val schema = new StructType()
-        .add(StructField(bcastStrategy.value.instanceCol, LongType))
-        .add(StructField(bcastStrategy.value.featuresCol, new VectorUDT))
+        .add(StructField(strategy.instanceCol, LongType))
+        .add(StructField(strategy.featuresCol, new VectorUDT))
 
       println(s"[$getNowTime] Getting prediction RDD ......")
 
       val predictRDDs =
         Array(ensemblePredict, ensemblePredict_test).map { predict =>
-          val grouped = predict.rdd.groupBy(_.getAs[Long](bcastStrategy.value.instanceCol))
+          val grouped = predict.rdd.groupBy(_.getAs[Long](strategy.instanceCol))
           //          println(s"grouped $idx partition: ${grouped.getNumPartitions}")
           val predictRDD = grouped.map { group =>
             val instanceId = group._1
             val rows = group._2
             val features = new DenseVector(rows.toArray
-              .sortWith(_.getAs[Int](bcastStrategy.value.forestIdCol) < _.getAs[Int](bcastStrategy.value.forestIdCol))
-              .flatMap(_.getAs[Vector](bcastStrategy.value.featuresCol).toArray))
+              .sortWith(_.getAs[Int](strategy.forestIdCol) < _.getAs[Int](strategy.forestIdCol))
+              .flatMap(_.getAs[Vector](strategy.featuresCol).toArray))
             Row.fromSeq(Array[Any](instanceId, features))
           }
           predictRDD
@@ -751,12 +748,11 @@ private[spark] object GCBoostedTreeImpl extends Logging {
           s"[Result][Reach Max Layer] max_layer_num=$layer_id, " +
           s"accuracy_train=$layer_train_metric, accuracy_test=$layer_test_metric")
       layer_id += 1
-      bcastTraining.destroy(blocking = false)
-      bcastTesting.destroy(blocking = false)
+
       training.unpersist(blocking = false)
       testing.unpersist(blocking = false)
     }
-    bcastStrategy.destroy(blocking = false)
+
     scanFeature_train.unpersist
     scanFeature_test.unpersist
     println(s"[$getNowTime] Cascade Forest Training Finished!")
