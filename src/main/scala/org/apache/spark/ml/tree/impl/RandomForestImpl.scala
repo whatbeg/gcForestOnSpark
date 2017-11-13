@@ -80,6 +80,7 @@ private[spark] object RandomForestImpl extends Logging {
           parentUID: Option[String] = None): Array[DecisionTreeModel] = {
     // register KryoClasses
     input.sparkContext.conf.registerKryoClasses(Array(classOf[DTStatsAggregator], classOf[ImpurityStats]))
+
     val timer = new TimeTracker()
 
     timer.start("total")
