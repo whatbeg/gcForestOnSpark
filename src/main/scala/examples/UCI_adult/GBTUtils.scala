@@ -6,40 +6,40 @@ package examples.UCI_adult
 
 import scopt.OptionParser
 
-object Utils {
+object GBTUtils {
   case class TrainParams(
-    trainFile: String = "./data/uci_adult/adult.data",
-    testFile: String = "./data/uci_adult/adult.test",
-    featuresFile: String = "./data/uci_adult/features",
-    model: String = "./models/uci_adult",
-    classNum: Int = 2,
-    multiScanWindow: Array[Int] = Array(),
-    scanForestTreeNum: Int = 2,
-    cascadeForestTreeNum: Int = 500,
-    scanMinInsPerNode: Int = 2,
-    cascadeMinInsPerNode: Int = 2,
-    maxBins: Int = 32,
-    maxDepth: Int = 30,
-    maxIteration: Int = 10,
-    maxMemoryInMB: Int = 2048,
-    numFolds: Int = 3,
-    earlyStoppingRounds: Int = 4,
-    earlyStopByTest: Boolean = true,
-    dataStyle: String = "Seq",
-    dataSize: Array[Int] = Array(113),
-    seed: Long = 123,
-    cacheNodeId: Boolean = true,
-    debugLevel: String = "ERROR",
-    winCol: String = "windows",
-    scanCol: String = "scan_id",
-    forestIdCol: String = "forestNum",
-    instanceCol: String = "instance",
-    rawPredictionCol: String = "rawPrediction",
-    probabilityCol: String = "probability",
-    predictionCol: String = "prediction",
-    featuresCol: String = "features",
-    labelCol: String = "label",
-    idebug: Boolean = false)
+              trainFile: String = "./data/uci_adult/adult.data",
+              testFile: String = "./data/uci_adult/adult.test",
+              featuresFile: String = "./data/uci_adult/features",
+              model: String = "./models/uci_adult",
+              classNum: Int = 2,
+              multiScanWindow: Array[Int] = Array(),
+              scanForestTreeNum: Int = 2,
+              cascadeForestTreeNum: Int = 500,
+              scanMinInsPerNode: Int = 2,
+              cascadeMinInsPerNode: Int = 2,
+              maxBins: Int = 32,
+              maxDepth: Int = 5,
+              maxIteration: Int = 10,
+              maxMemoryInMB: Int = 256,
+              numFolds: Int = 3,
+              earlyStoppingRounds: Int = 4,
+              earlyStopByTest: Boolean = true,
+              dataStyle: String = "Seq",
+              dataSize: Array[Int] = Array(113),
+              seed: Long = 123,
+              cacheNodeId: Boolean = true,
+              debugLevel: String = "ERROR",
+              winCol: String = "windows",
+              scanCol: String = "scan_id",
+              forestIdCol: String = "forestNum",
+              instanceCol: String = "instance",
+              rawPredictionCol: String = "rawPrediction",
+              probabilityCol: String = "probability",
+              predictionCol: String = "prediction",
+              featuresCol: String = "features",
+              labelCol: String = "label",
+              idebug: Boolean = false)
 
   val trainParser = new OptionParser[TrainParams]("GCForest On Spark - UCI ADULT Example") {
     head("Train Multi-grain Scan Cascade Forest for UCI ADULT")
@@ -77,7 +77,7 @@ object Utils {
       .text("random Forest max Bins to split continuous features, default: 32")
       .action((x, c) => c.copy(maxBins = x))
     opt[Int]('d', "maxDepth")
-      .text("random Forest max Depth, default: 30")
+      .text("random Forest max Depth, default: 5")
       .action((x, c) => c.copy(maxDepth = x))
     opt[Int]('i', "maxIteration")
       .text("max Iteration to grow cascade Forests, default: 10")

@@ -271,6 +271,8 @@ class GradientBoostingClassificationModel private[ml](
     Vectors.dense(Array(-prediction, prediction))
   }
 
+  override def predictProbability(features: Vector): Vector = super.predictProbability(features)
+
   override protected def raw2probabilityInPlace(rawPrediction: Vector): Vector = {
     rawPrediction match {
       case dv: DenseVector =>

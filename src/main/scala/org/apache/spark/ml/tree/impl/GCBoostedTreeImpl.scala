@@ -22,20 +22,20 @@ import org.apache.spark.storage.StorageLevel
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
 
-private[spark] object GCForestImpl extends Logging {
+private[spark] object GCBoostedTreeImpl extends Logging {
 
   def run(
-      input: Dataset[_],
-      gcforestStategy: GCForestStrategy
-      ): GCForestClassificationModel = {
+           input: Dataset[_],
+           gcforestStategy: GCForestStrategy
+         ): GCBoostedTreeClassificationModel = {
     train(input, strategy = gcforestStategy)
   }
 
   def runWithValidation(
-      input: Dataset[_],
-      validationInput: Dataset[_],
-      gCForestStrategy: GCForestStrategy
-      ): GCForestClassificationModel = {
+                         input: Dataset[_],
+                         validationInput: Dataset[_],
+                         gCForestStrategy: GCForestStrategy
+                       ): GCBoostedTreeClassificationModel = {
     trainWithValidation(input, validationInput, gCForestStrategy)
   }
 
@@ -153,13 +153,13 @@ private[spark] object GCForestImpl extends Logging {
 
   def cvClassVectorGenerator(
       training: Dataset[_],
-      rfc: RandomForestCARTClassifier,
+      rfc: GradientBoostingTreeClassifier,
       numFolds: Int,
       seed: Long,
       strategy: GCForestStrategy,
       isScan: Boolean = false,
       message: String = ""):
-  (DataFrame, Metric, RandomForestCARTModel) = {
+  (DataFrame, Metric, GradientBoostingClassificationModel) = {
     val schema = training.schema
     val sparkSession = training.sparkSession
     var out_train: DataFrame = null // closure need
@@ -191,13 +191,13 @@ private[spark] object GCForestImpl extends Logging {
   def cvClassVectorGeneratorWithValidation(
       bcastTraining: Broadcast[DataFrame],
       bcastTesting: Broadcast[DataFrame],
-      rfc: RandomForestCARTClassifier,
+      rfc: GradientBoostingTreeClassifier,
       numFolds: Int,
       seed: Long,
       strategy: GCForestStrategy,
       isScan: Boolean,
       message: String):
-  (DataFrame, DataFrame, Metric, Metric, Array[RandomForestCARTModel]) = {
+  (DataFrame, DataFrame, Metric, Metric, Array[GradientBoostingClassificationModel]) = {
     val schema = bcastTraining.value.schema
     val sparkSession = bcastTraining.value.sparkSession
     var out_train: DataFrame = null // closure need
@@ -217,7 +217,7 @@ private[spark] object GCForestImpl extends Logging {
         trainingDataset.unpersist()
         // rawPrediction == probabilityCol
         val val_result = model.transform(validationDataset).drop(strategy.featuresCol)
-            .withColumnRenamed(strategy.probabilityCol, strategy.featuresCol)
+          .withColumnRenamed(strategy.probabilityCol, strategy.featuresCol)
         out_train = if (out_train == null) val_result else out_train.union(val_result)
 
         if (!isScan) {
@@ -231,7 +231,7 @@ private[spark] object GCForestImpl extends Logging {
           .withColumnRenamed(strategy.probabilityCol, strategy.featuresCol+s"$splitIndex")
           .select(strategy.instanceCol, strategy.labelCol, strategy.featuresCol+s"$splitIndex")
         out_test = if (out_test == null) test_result
-          else out_test.join(test_result, Seq(strategy.instanceCol, strategy.labelCol))
+        else out_test.join(test_result, Seq(strategy.instanceCol, strategy.labelCol))
 
         validationDataset.unpersist()
         model
@@ -277,6 +277,7 @@ private[spark] object GCForestImpl extends Logging {
       .setMinInfoGain(10e-7)
       .setMinInstancesPerNode(strategy.cascadeMinInsPerNode)
       .setMaxMemoryInMB(strategy.maxMemoryInMB)
+      .setMaxDepth(strategy.maxDepth)
   }
 
   /**
@@ -286,10 +287,10 @@ private[spark] object GCForestImpl extends Logging {
     * @return input for Cascade Forest
     */
   def concatenate(
-      strategy: GCForestStrategy,
-      dataset: Dataset[_],
-      sets: Dataset[_]*
-     ): DataFrame = {
+                   strategy: GCForestStrategy,
+                   dataset: Dataset[_],
+                   sets: Dataset[_]*
+                 ): DataFrame = {
     val sparkSession = dataset.sparkSession
     var unionSet = dataset.toDF
     sets.foreach(ds => unionSet = unionSet.union(ds.toDF))
@@ -348,9 +349,9 @@ private[spark] object GCForestImpl extends Logging {
     * @return
     */
   def mergeFeatureAndPredict(
-      feature: Dataset[_],
-      predict: Dataset[_],
-      strategy: GCForestStrategy): DataFrame = {
+                              feature: Dataset[_],
+                              predict: Dataset[_],
+                              strategy: GCForestStrategy): DataFrame = {
     val vectorMerge = udf { (v1: Vector, v2: Vector) =>
       new DenseVector(v1.toArray.union(v2.toArray))
     }
@@ -376,8 +377,8 @@ private[spark] object GCForestImpl extends Logging {
     *  Multi-Grained Scanning
     */
   def multi_grain_Scan(
-      dataset: Dataset[_],
-      strategy: GCForestStrategy): (DataFrame, Array[MultiGrainedScanModel]) = {
+                        dataset: Dataset[_],
+                        strategy: GCForestStrategy): (DataFrame, Array[MultiGrainedScanModel]) = {
 
     require(dataset != null, "Null dataset need not to scan")
 
@@ -402,7 +403,7 @@ private[spark] object GCForestImpl extends Logging {
         val rfc =
           genRFClassifier("rfc", strategy, isScan = true, 0)
         var (rfcFeature, _, rfcModel) =
-          cvClassVectorGenerator(windowInstances, rfc, strategy.numFolds, strategy.seed, strategy,
+          GCForestImpl.cvClassVectorGenerator(windowInstances, rfc, strategy.numFolds, strategy.seed, strategy,
             isScan = true, "Scan 1")
         rfcFeature = rfcFeature.withColumn(strategy.forestIdCol, lit(1)).withColumn(strategy.scanCol, lit(i))
 
@@ -411,7 +412,7 @@ private[spark] object GCForestImpl extends Logging {
         val crfc =
           genRFClassifier("crfc", strategy, isScan = true, 1)
         var (crfcFeature, _, crfcModel) =
-          cvClassVectorGenerator(windowInstances, crfc, strategy.numFolds, strategy.seed, strategy,
+          GCForestImpl.cvClassVectorGenerator(windowInstances, crfc, strategy.numFolds, strategy.seed, strategy,
             isScan = true, "Scan 2")
         crfcFeature = crfcFeature.withColumn(strategy.forestIdCol, lit(2)).withColumn(strategy.scanCol, lit(i))
 
@@ -432,7 +433,7 @@ private[spark] object GCForestImpl extends Logging {
         val rfc =
           genRFClassifier("rfc", strategy, isScan = true, 0)
         var (rfcFeature, _, rfcModel) =
-          cvClassVectorGenerator(windowInstances, rfc, strategy.numFolds, strategy.seed, strategy,
+          GCForestImpl.cvClassVectorGenerator(windowInstances, rfc, strategy.numFolds, strategy.seed, strategy,
             isScan = true, "Scan 1")
         rfcFeature = rfcFeature.withColumn(strategy.forestIdCol, lit(1)).withColumn(strategy.scanCol, lit(i))
 
@@ -441,7 +442,7 @@ private[spark] object GCForestImpl extends Logging {
         val crfc =
           genRFClassifier("crfc", strategy, isScan = true, 1)
         var (crfcFeature, _, crfcModel) =
-          cvClassVectorGenerator(windowInstances, crfc, strategy.numFolds, strategy.seed, strategy,
+          GCForestImpl.cvClassVectorGenerator(windowInstances, crfc, strategy.numFolds, strategy.seed, strategy,
             isScan = true, "Scan 2")
         crfcFeature = crfcFeature.withColumn(strategy.forestIdCol, lit(2)).withColumn(strategy.scanCol, lit(i))
         scanFeatures += crfcFeature
@@ -463,10 +464,10 @@ private[spark] object GCForestImpl extends Logging {
   }
 
   def train(
-      input: Dataset[_],
-      strategy: GCForestStrategy): GCForestClassificationModel = {
+             input: Dataset[_],
+             strategy: GCForestStrategy): GCBoostedTreeClassificationModel = {
     val numClasses: Int = strategy.classNum
-    val erfModels = ArrayBuffer[Array[RandomForestCARTModel]]()
+    val erfModels = ArrayBuffer[Array[GradientBoostingClassificationModel]]()
     val n_train = input.count()
 
     val (scanFeature_train, mgsModels) = multi_grain_Scan(input, strategy)
@@ -493,10 +494,8 @@ private[spark] object GCForestImpl extends Logging {
 
       println(s"[$getNowTime] Training Cascade Forest Layer $layer_id")
 
-      val randomForests = (Range(0, 4).map ( it => genRFClassifier("rfc", strategy, isScan = false, rng.nextInt + it))
-        ++
-        Range(4, 8).map ( it => genRFClassifier("crfc", strategy, isScan = false, rng.nextInt + it))
-      ).toArray[RandomForestCARTClassifier]
+      val randomForests = Range(0, 8).map ( it => genGBTClassifier("gbt", strategy, isScan = false, rng.nextInt + it))
+        .toArray[GradientBoostingTreeClassifier]
       assert(randomForests.length == 8, "random Forests inValid!")
       // scanFeatures_*: (instanceId, label, features)
       val training = mergeFeatureAndPredict(scanFeature_train, lastPrediction, strategy)
@@ -582,18 +581,18 @@ private[spark] object GCForestImpl extends Logging {
 
     println(s"[$getNowTime] Cascade Forest Training Finished!")
 
-    new GCForestClassificationModel(mgsModels, erfModels.toArray, numClasses)
+    new GCBoostedTreeClassificationModel(mgsModels, erfModels.toArray, numClasses)
   }
 
   /**
     *  Train a Cascade Forest
     */
   private def trainWithValidation(
-              input: Dataset[_],
-              validationInput: Dataset[_],
-              strategy: GCForestStrategy): GCForestClassificationModel = {
+             input: Dataset[_],
+             validationInput: Dataset[_],
+             strategy: GCForestStrategy): GCBoostedTreeClassificationModel = {
     val numClasses: Int = strategy.classNum
-    val erfModels = ArrayBuffer[Array[RandomForestCARTModel]]() // layer - (forest * fold)
+    val erfModels = ArrayBuffer[Array[GradientBoostingClassificationModel]]() // layer - (forest * fold)
     val n_train = input.count()
     val n_test = validationInput.count()
 
@@ -625,13 +624,8 @@ private[spark] object GCForestImpl extends Logging {
 
       println(s"[$getNowTime] Training Cascade Forest Layer $layer_id")
 
-      val randomForests = (
-//        Range(0, 2).map ( it => genGBTClassifier("gbt", strategy, isScan = false, rng.nextInt + it))
-//        ++
-        Range(0, 4).map ( it => genRFClassifier("rfc", strategy, isScan = false, rng.nextInt + it))
-        ++
-        Range(4, 8).map ( it => genRFClassifier("crfc", strategy, isScan = false, rng.nextInt + it))
-        ).toArray[RandomForestCARTClassifier]
+      val randomForests = Range(0, 8).map ( it => genGBTClassifier("gbt", strategy, isScan = false, rng.nextInt + it))
+        .toArray[GradientBoostingTreeClassifier]
       assert(randomForests.length == 8, "random Forests inValid!")
       // scanFeatures_*: (instanceId, label, features)
       val training = mergeFeatureAndPredict(scanFeature_train, lastPrediction, strategy)
@@ -744,7 +738,7 @@ private[spark] object GCForestImpl extends Logging {
         .persist(StorageLevel.MEMORY_ONLY_SER)
       val outOfRounds =
         (strategy.earlyStopByTest && layer_id - opt_layer_id_test >= strategy.earlyStoppingRounds) ||
-        (!strategy.earlyStopByTest && layer_id - opt_layer_id_train >= strategy.earlyStoppingRounds)
+          (!strategy.earlyStopByTest && layer_id - opt_layer_id_train >= strategy.earlyStoppingRounds)
       if (outOfRounds)
         println(s"[$getNowTime] " +
           s"[Result][Optimal Level Detected] opt_layer_id = " +
@@ -767,6 +761,6 @@ private[spark] object GCForestImpl extends Logging {
     scanFeature_test.unpersist
     println(s"[$getNowTime] Cascade Forest Training Finished!")
 
-    new GCForestClassificationModel(mgsModels ++ mgsModels_test, erfModels.toArray, numClasses)
+    new GCBoostedTreeClassificationModel(mgsModels ++ mgsModels_test, erfModels.toArray, numClasses)
   }
 }
