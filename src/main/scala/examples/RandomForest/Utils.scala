@@ -12,7 +12,7 @@ object Utils {
   val dateFormat: SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS")
   def getNowTime = dateFormat.format(new Date())
   case class TrainParams(
-                          trainFile: String = "./data/uci_adult/adult_2000.data",
+                          trainFile: String = "./data/uci_adult/adult.data",
                           testFile: String = "./data/uci_adult/sample_adult.test",
                           featuresFile: String = "./data/uci_adult/features",
                           model: String = "./models/uci_adult",
@@ -22,7 +22,7 @@ object Utils {
                           maxBins: Int = 32,
                           maxDepth: Int = 30,
                           seed: Long = 123,
-                          cacheNodeId: Boolean = false,
+                          cacheNodeId: Boolean = true,
                           debugLevel: String = "ERROR",
                           idebug: Boolean = false,
                           parallelism: Int = 0)

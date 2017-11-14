@@ -192,7 +192,7 @@ private[spark] object RandomForestImpl extends Logging {
 
     timer.stop("total")
 
-    println("Internal timing for DecisionTree:")
+    println("Internal timing for RandomForest:")
     println(s"$timer")
 
     // Delete any remaining checkpoints used for node Id cache.
@@ -484,7 +484,7 @@ private[spark] object RandomForestImpl extends Logging {
     }
 
     // Calculate best splits for all nodes in the group
-    timer.start("chooseSplits")
+    timer.start("findBestSplits - chooseSplits")
 
     // In each partition, iterate all instances and compute aggregate stats for each node,
     // yield a (nodeIndex, nodeAggregateStats) pair for each node.
@@ -495,6 +495,7 @@ private[spark] object RandomForestImpl extends Logging {
     val nodeToFeatures = getNodeToFeatures(treeToNodeToIndexInfo)
     val nodeToFeaturesBc = input.sparkContext.broadcast(nodeToFeatures)
 
+    timer.start("findBestSplits - chooseSplits - get partitionAggregates")
     val partitionAggregates: RDD[(Int, DTStatsAggregator)] = if (nodeIdCache.nonEmpty) {
       input.zip(nodeIdCache.get.nodeIdsForInstances).mapPartitions { points =>
         // Construct a nodeStatsAggregators array to hold node aggregate stats,
@@ -532,7 +533,9 @@ private[spark] object RandomForestImpl extends Logging {
         nodeStatsAggregators.view.zipWithIndex.map(_.swap).iterator
       }
     }
+    timer.stop("findBestSplits - chooseSplits - get partitionAggregates")
 
+    timer.start("findBestSplits - chooseSplits - collectAsMap to master")
     val nodeToBestSplits = partitionAggregates.reduceByKey((a, b) => a.merge(b)).map {
       case (nodeIndex, aggStats) =>
         val featuresForNode = nodeToFeaturesBc.value.flatMap { nodeToFeatures =>
@@ -544,8 +547,9 @@ private[spark] object RandomForestImpl extends Logging {
           binsToBestSplit(aggStats, splits, featuresForNode, nodes(nodeIndex))
         (nodeIndex, (split, stats))
     }.collectAsMap()
+    timer.stop("findBestSplits - chooseSplits - collectAsMap to master")
 
-    timer.stop("chooseSplits")
+    timer.stop("findBestSplits - chooseSplits")
 
     val nodeIdUpdaters = if (nodeIdCache.nonEmpty) {
       Array.fill[mutable.Map[Int, NodeIndexUpdater]](
@@ -553,6 +557,8 @@ private[spark] object RandomForestImpl extends Logging {
     } else {
       null
     }
+
+    timer.start("findBestSplits - master do split on metadata")
     // Iterate over all nodes in this group.
     nodesForGroup.foreach { case (treeIndex, nodesForTree) =>
       nodesForTree.foreach { node =>
@@ -607,6 +613,7 @@ private[spark] object RandomForestImpl extends Logging {
       // Update the cache if needed.
       nodeIdCache.get.updateNodeIndices(input, nodeIdUpdaters, splits)
     }
+    timer.stop("findBestSplits - master do split on metadata")
   }
 
   /**

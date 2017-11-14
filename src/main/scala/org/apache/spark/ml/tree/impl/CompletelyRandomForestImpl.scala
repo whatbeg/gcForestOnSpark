@@ -150,8 +150,8 @@ private [spark] object CompletelyRandomForestImpl extends Logging {
 
     timer.stop("total")
 
-    logInfo("Internal timing for DecisionTree:")
-    logInfo(s"$timer")
+    println("Internal timing for DecisionTree:")
+    println(s"$timer")
 
     // Delete any remaining checkpoints used for node Id cache.
     if (nodeIdCache.nonEmpty) {

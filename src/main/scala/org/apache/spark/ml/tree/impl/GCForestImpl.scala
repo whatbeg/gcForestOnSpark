@@ -693,7 +693,7 @@ private[spark] object GCForestImpl extends Logging {
         if (strategy.idebug) {
           println("Model ==========================================")
           println("total Number of Nodes: " + transformed._5.map(_.totalNumNodes).mkString(" , "))
-          println("First Tree Structure: " + transformed._5(0).trees(0).toDebugString)
+//          println("First Tree Structure: " + transformed._5(0).trees(0).toDebugString)
           println("Model ==========================================")
         }
         transformed._5
@@ -767,6 +767,10 @@ private[spark] object GCForestImpl extends Logging {
       layer_id += 1
       training.unpersist(blocking = false)
       testing.unpersist(blocking = false)
+      if (strategy.idebug) {
+        println(s"Layer ${layer_id - 1} Time Summary")
+        println(s"$timer")
+      }
     }
 
     scanFeature_train.unpersist
