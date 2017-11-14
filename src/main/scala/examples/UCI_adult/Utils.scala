@@ -8,7 +8,7 @@ import scopt.OptionParser
 
 object Utils {
   case class TrainParams(
-              trainFile: String = "./data/uci_adult/adult.data",
+              trainFile: String = "./data/uci_adult/adult_2000.data",
               testFile: String = "./data/uci_adult/sample_adult.test",
               featuresFile: String = "./data/uci_adult/features",
               model: String = "./models/uci_adult",
@@ -39,7 +39,7 @@ object Utils {
               predictionCol: String = "prediction",
               featuresCol: String = "features",
               labelCol: String = "label",
-              idebug: Boolean = true)
+              idebug: Boolean = false)
 
   val trainParser = new OptionParser[TrainParams]("GCForest On Spark - UCI ADULT Example") {
     head("Train Multi-grain Scan Cascade Forest for UCI ADULT")

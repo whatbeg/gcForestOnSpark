@@ -593,24 +593,30 @@ private[spark] object GCForestImpl extends Logging {
               strategy: GCForestStrategy): GCForestClassificationModel = {
     val timer = new TimeTracker()
     timer.start("total")
+    if (strategy.idebug) println("timer.start(\"total\")")
     val numClasses: Int = strategy.classNum
     val erfModels = ArrayBuffer[Array[RandomForestCARTModel]]() // layer - (forest * fold)
     val n_train = input.count()
     val n_test = validationInput.count()
 
     timer.start("multi_grain_Scan for Train and Test")
+    if (strategy.idebug) println("timer.start(\"multi_grain_Scan for Train and Test\")")
     val (scanFeature_train, mgsModels) = multi_grain_Scan(input, strategy)
     val (scanFeature_test, mgsModels_test) = multi_grain_Scan(validationInput, strategy)
     timer.stop("multi_grain_Scan for Train and Test")
+    if (strategy.idebug) println("timer.stop(\"multi_grain_Scan for Train and Test\")")
 
     timer.start("cache scanFeature of Train and Test")
+    if (strategy.idebug) println("timer.start(\"cache scanFeature of Train and Test\")")
     scanFeature_train.cache()
     scanFeature_test.cache()
     timer.stop("cache scanFeature of Train and Test")
+    if (strategy.idebug) println("timer.stop(\"cache scanFeature of Train and Test\")")
 
     println(s"[$getNowTime] Cascade Forest begin!")
 
     timer.start("init")
+    if (strategy.idebug) println("timer.start(\"init\")")
     val sparkSession = scanFeature_train.sparkSession
     val sc = sparkSession.sparkContext
     val rng = new Random()
@@ -627,6 +633,7 @@ private[spark] object GCForestImpl extends Logging {
     var reachMaxLayer = false
 
     timer.stop("init")
+    if (strategy.idebug) println("timer.stop(\"init\")")
 
     while (!reachMaxLayer) {
 
@@ -640,13 +647,15 @@ private[spark] object GCForestImpl extends Logging {
       assert(randomForests.length == 8, "random Forests inValid!")
       // scanFeatures_*: (instanceId, label, features)
       timer.start("merge to produce training, testing and persist")
+      if (strategy.idebug) println("timer.start(\"merge to produce training, testing and persist\")")
       val training = mergeFeatureAndPredict(scanFeature_train, lastPrediction, strategy)
-//        .repartition(sc.defaultParallelism)
+        .repartition(sc.defaultParallelism)
         .persist(StorageLevel.MEMORY_ONLY_SER)
       val testing = mergeFeatureAndPredict(scanFeature_test, lastPrediction_test, strategy)
-//        .repartition(sc.defaultParallelism)
+        .repartition(sc.defaultParallelism)
         .persist(StorageLevel.MEMORY_ONLY_SER)
       timer.stop("merge to produce training, testing and persist")
+      if (strategy.idebug) println("timer.stop(\"merge to produce training, testing and persist\")")
 
       val features_dim = training.first().mkString.split(",").length
 
@@ -663,14 +672,18 @@ private[spark] object GCForestImpl extends Logging {
       var layer_test_metric: Accuracy = new Accuracy(0, 0)  // closure need
 
       println(s"[$getNowTime] Forests fitting and transforming ......")
-      timer.start("randomForests")
+      timer.start("randomForests training")
+      if (strategy.idebug) println("timer.start(\"randomForests training\")")
       erfModels ++= randomForests.zipWithIndex.map { case (rf, it) =>
         timer.start("cvClassVectorGeneration")
+        if (strategy.idebug) println("timer.start(\"cvClassVectorGeneration\")")
         val transformed = cvClassVectorGeneratorWithValidation(
           training, testing, rf, strategy.numFolds, strategy.seed, strategy,
           isScan = false, s"layer [$layer_id] - estimator [$it]")
         timer.stop("cvClassVectorGeneration")
+        if (strategy.idebug) println("timer.stop(\"cvClassVectorGeneration\")")
         timer.start("add forestIdCol and Union")
+        if (strategy.idebug) println("timer.start(\"add forestIdCol and Union\")")
         val predict = transformed._1
           .withColumn(strategy.forestIdCol, lit(it))
           .select(strategy.instanceCol, strategy.featuresCol, strategy.forestIdCol)
@@ -683,6 +696,7 @@ private[spark] object GCForestImpl extends Logging {
           if (ensemblePredict_test == null) predict_test else ensemblePredict_test
             .union(predict_test)
         timer.stop("add forestIdCol and Union")
+        if (strategy.idebug) println("timer.stop(\"add forestIdCol and Union\")")
         layer_train_metric = layer_train_metric + transformed._3
         layer_test_metric = layer_test_metric + transformed._4
 
@@ -698,7 +712,8 @@ private[spark] object GCForestImpl extends Logging {
         }
         transformed._5
       }
-      timer.stop("randomForests")
+      timer.stop("randomForests training")
+      if (strategy.idebug) println("timer.stop(\"randomForests training\")")
       println(s"[$getNowTime] [Layer Summary] layer [$layer_id] - " +
         s"train.classifier.average = ${layer_train_metric.div(8d)}")
       println(s"[$getNowTime] [Layer Summary] layer [$layer_id] - " +
@@ -714,6 +729,7 @@ private[spark] object GCForestImpl extends Logging {
 
       println(s"[$getNowTime] Getting prediction RDD ......")
       timer.start("flatten prediction")
+      if (strategy.idebug) println("timer.start(\"flatten prediction\")")
       val predictRDDs =
         Array(ensemblePredict, ensemblePredict_test).map { predict =>
           val grouped = predict.rdd.groupBy(_.getAs[Long](strategy.instanceCol))
@@ -729,6 +745,7 @@ private[spark] object GCForestImpl extends Logging {
           predictRDD
         }
       timer.stop("flatten prediction")
+      if (strategy.idebug) println("timer.stop(\"flatten prediction\")")
       println(s"[$getNowTime] Get prediction RDD finished! Layer $layer_id training finished!")
 
       val opt_layer_id_train = acc_list(0).zipWithIndex.maxBy(_._1)._2
@@ -779,7 +796,7 @@ private[spark] object GCForestImpl extends Logging {
     timer.stop("total")
 
     if (strategy.idebug) {
-      println("Internal timing for DecisionTree:")
+      println("Internal timing for GCForestImpl:")
       println(s"$timer")
     }
     new GCForestClassificationModel(mgsModels ++ mgsModels_test, erfModels.toArray, numClasses)
