@@ -641,10 +641,10 @@ private[spark] object GCForestImpl extends Logging {
       // scanFeatures_*: (instanceId, label, features)
       timer.start("merge to produce training, testing and persist")
       val training = mergeFeatureAndPredict(scanFeature_train, lastPrediction, strategy)
-        .repartition(sc.defaultParallelism)
+//        .repartition(sc.defaultParallelism)
         .persist(StorageLevel.MEMORY_ONLY_SER)
       val testing = mergeFeatureAndPredict(scanFeature_test, lastPrediction_test, strategy)
-        .repartition(sc.defaultParallelism)
+//        .repartition(sc.defaultParallelism)
         .persist(StorageLevel.MEMORY_ONLY_SER)
       timer.stop("merge to produce training, testing and persist")
 
