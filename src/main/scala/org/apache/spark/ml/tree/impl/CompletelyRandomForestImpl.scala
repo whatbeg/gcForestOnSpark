@@ -8,7 +8,6 @@ import java.io.IOException
 
 import scala.collection.mutable
 import scala.util.Random
-
 import org.apache.spark.internal.Logging
 import org.apache.spark.ml.classification.DecisionTreeClassificationModel
 import org.apache.spark.ml.feature.LabeledPoint
@@ -20,6 +19,7 @@ import org.apache.spark.mllib.tree.impurity.ImpurityCalculator
 import org.apache.spark.mllib.tree.model.ImpurityStats
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
+import org.apache.spark.util.SizeEstimator
 import org.apache.spark.util.random.XORShiftRandom
 import org.apache.spark.utils.random.SamplingUtils
 
@@ -97,7 +97,7 @@ private [spark] object CompletelyRandomForestImpl extends Logging {
     // Create an RDD of node Id cache.
     // At first, all the rows belong to the root nodes (node Id == 1).
     val nodeIdCache = if (strategy.useNodeIdCache) {
-      Some(NodeIdCache.init(
+      Some(NodeIDCache.init(
         data = baggedInput,
         numTrees = numTrees,
         checkpointInterval = strategy.checkpointInterval,
@@ -124,7 +124,7 @@ private [spark] object CompletelyRandomForestImpl extends Logging {
     Range(0, numTrees).foreach(treeIndex => nodeStack.push((treeIndex, topNodes(treeIndex))))
 
     timer.stop("init")
-
+    var group = 1
     while (nodeStack.nonEmpty) {
       // Collect some nodes to split, and choose features for each node (if subsampling).
       // Each group of nodes may come from one or multiple trees, and at multiple levels.
@@ -133,7 +133,9 @@ private [spark] object CompletelyRandomForestImpl extends Logging {
       // Sanity check (should never occur):
       assert(nodesForGroup.nonEmpty,
         s"CompleteRandomTreeForest selected empty nodesForGroup.  Error for unknown reason.")
-
+      logWarning(s"Completely Random Forest Impl: Group $group nodes are selected," +
+        s" total ${nodesForGroup.values.map(_.length).sum} nodes," +
+        " Size estimates: %.1f M".format(SizeEstimator.estimate(nodesForGroup) / (1024 * 1024.0)))
       // Only send trees to worker if they contain nodes being split this iteration.
       val topNodesForGroup: Map[Int, LearningNode] =
       nodesForGroup.keys.map(treeIdx => treeIdx -> topNodes(treeIdx)).toMap
@@ -144,12 +146,13 @@ private [spark] object CompletelyRandomForestImpl extends Logging {
         .findRandomSplits(baggedInput, metadata, topNodesForGroup, nodesForGroup,
         treeToNodeToIndexInfo, splits, nodeStack, timer, nodeIdCache)
       timer.stop("findRandomSplits")
+      group += 1
     }
 
     baggedInput.unpersist()
 
     timer.stop("total")
-
+    logWarning("nodeIDCache estimates Size: %.1f M".format(SizeEstimator.estimate(nodeIdCache) / (1024 * 1024.0)))
     println("Internal timing for DecisionTree:")
     println(s"$timer")
 
@@ -312,7 +315,7 @@ private [spark] object CompletelyRandomForestImpl extends Logging {
                                      splits: Array[Array[Split]],
                                      nodeStack: mutable.Stack[(Int, LearningNode)],
                                      timer: TimeTracker = new TimeTracker,
-                                     nodeIdCache: Option[NodeIdCache] = None): Unit = {
+                                     nodeIdCache: Option[NodeIDCache] = None): Unit = {
 
     /*
      * The high-level descriptions of the best split optimizations are noted here.
@@ -490,7 +493,8 @@ private [spark] object CompletelyRandomForestImpl extends Logging {
         nodeStatsAggregators.view.zipWithIndex.map(_.swap).iterator
       }
     }
-
+    logWarning(s"partitionAggregators Estimates: %.1f M"
+      .format(SizeEstimator.estimate(partitionAggregates) / (1024 * 1024.0)))
     val nodeToRandomSplits = partitionAggregates.reduceByKey((a, b) => a.merge(b)).map {
       case (nodeIndex, aggStats) =>
         val featuresForNode = nodeToFeaturesBc.value.flatMap { nodeToFeatures =>
@@ -504,7 +508,8 @@ private [spark] object CompletelyRandomForestImpl extends Logging {
     }.collectAsMap()
 
     timer.stop("chooseSplits")
-
+    logWarning("nodeToRandomSplits Estimates: %.1f M"
+      .format(SizeEstimator.estimate(nodeToRandomSplits) / (1024 * 1024.0)))
     val nodeIdUpdaters = if (nodeIdCache.nonEmpty) {
       Array.fill[mutable.Map[Int, NodeIndexUpdater]](
         metadata.numTrees)(mutable.Map[Int, NodeIndexUpdater]())
@@ -522,7 +527,7 @@ private [spark] object CompletelyRandomForestImpl extends Logging {
         logDebug("best split = " + split)
 
         // Extract info for this node.  Create children if not leaf.
-        val isLeaf = (stats.gain <= 0) || (LearningNode.indexToLevel(nodeIndex) == metadata.maxDepth)
+        val isLeaf = (stats.gain < metadata.minInfoGain) || (LearningNode.indexToLevel(nodeIndex) == metadata.maxDepth)
         node.isLeaf = isLeaf
         node.stats = stats
         logDebug("Node = " + node)

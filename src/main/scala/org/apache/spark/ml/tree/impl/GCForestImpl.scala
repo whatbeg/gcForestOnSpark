@@ -188,10 +188,47 @@ private[spark] object GCForestImpl extends Logging {
     (out_train, train_metric, rfc.fit(training))
   }
 
+  // create a random forest classifier by type
+  def genRFClassifier(rfType: String,
+                      strategy: GCForestStrategy,
+                      isScan: Boolean,
+                      num: Int): RandomForestCARTClassifier = {
+    val rf = rfType match {
+      case "rfc" => new RandomForestCARTClassifier()
+      case "crfc" => new CompletelyRandomForestClassifier()
+    }
+
+    rf.setNumTrees(if (isScan) strategy.scanForestTreeNum else strategy.cascadeForestTreeNum)
+      .setMaxBins(strategy.maxBins)
+      .setMaxDepth(strategy.maxDepth)
+      .setMinInstancesPerNode(if (isScan) strategy.scanMinInsPerNode else strategy.cascadeMinInsPerNode)
+      .setMinInfoGain(strategy.minInfoGain)
+      .setFeatureSubsetStrategy("sqrt")
+      .setCacheNodeIds(strategy.cacheNodeId)
+      .setMaxMemoryInMB(strategy.maxMemoryInMB)
+      .setSeed(System.currentTimeMillis() + num*123L + rfType.hashCode % num)
+  }
+
+  // create a gradient boosting classifier by type
+  def genGBTClassifier(rfType: String,
+                       strategy: GCForestStrategy,
+                       isScan: Boolean,
+                       num: Int): GradientBoostingTreeClassifier = {
+    val rf = rfType match {
+      case "gbt" => new GradientBoostingTreeClassifier()
+    }
+
+    rf.setSeed(System.currentTimeMillis() + num*123L + rfType.hashCode % num)
+      .setCacheNodeIds(strategy.cacheNodeId)
+      .setMinInfoGain(strategy.minInfoGain)
+      .setMinInstancesPerNode(strategy.cascadeMinInsPerNode)
+      .setMaxMemoryInMB(strategy.maxMemoryInMB)
+  }
+
   def cvClassVectorGeneratorWithValidation(
       training: Dataset[_],
       testing: Dataset[_],
-      rfc: RandomForestCARTClassifier,
+      rfc_class: String,
       numFolds: Int,
       seed: Long,
       timer: TimeTracker,
@@ -213,6 +250,7 @@ private[spark] object GCForestImpl extends Logging {
     val splits = MLUtils.kFold(training.toDF.rdd, numFolds, seed * System.currentTimeMillis())
     val models = splits.zipWithIndex.map {
       case ((t, v), splitIndex) =>
+        val rfc = genRFClassifier(rfc_class, strategy, isScan, splitIndex+1)
         timer.start(s"cvGenerator - cv - $splitIndex")
         if (strategy.idebug) println(s"[$getNowTime] timer.start(cvGenerator - cv - $splitIndex)")
         val trainingDataset = sparkSession.createDataFrame(t, schema)
@@ -250,43 +288,6 @@ private[spark] object GCForestImpl extends Logging {
       .select(strategy.instanceCol, strategy.labelCol, strategy.featuresCol)
     val test_metric = if (!isScan) Evaluator.evaluate(out_test) else new Accuracy(0, 0)
     (out_train, out_test, train_metric, test_metric, models)
-  }
-
-  // create a random forest classifier by type
-  def genRFClassifier(rfType: String,
-                      strategy: GCForestStrategy,
-                      isScan: Boolean,
-                      num: Int): RandomForestCARTClassifier = {
-    val rf = rfType match {
-      case "rfc" => new RandomForestCARTClassifier()
-      case "crfc" => new CompletelyRandomForestClassifier()
-    }
-
-    rf.setNumTrees(if (isScan) strategy.scanForestTreeNum else strategy.cascadeForestTreeNum)
-      .setMaxBins(strategy.maxBins)
-      .setMaxDepth(strategy.maxDepth)
-      .setMinInstancesPerNode(if (isScan) strategy.scanMinInsPerNode else strategy.cascadeMinInsPerNode)
-      .setMinInfoGain(strategy.minInfoGain)
-      .setFeatureSubsetStrategy("sqrt")
-      .setCacheNodeIds(strategy.cacheNodeId)
-      .setMaxMemoryInMB(strategy.maxMemoryInMB)
-      .setSeed(System.currentTimeMillis() + num*123L + rfType.hashCode % num)
-  }
-
-  // create a gradient boosting classifier by type
-  def genGBTClassifier(rfType: String,
-                       strategy: GCForestStrategy,
-                       isScan: Boolean,
-                       num: Int): GradientBoostingTreeClassifier = {
-    val rf = rfType match {
-      case "gbt" => new GradientBoostingTreeClassifier()
-    }
-
-    rf.setSeed(System.currentTimeMillis() + num*123L + rfType.hashCode % num)
-      .setCacheNodeIds(strategy.cacheNodeId)
-      .setMinInfoGain(strategy.minInfoGain)
-      .setMinInstancesPerNode(strategy.cascadeMinInsPerNode)
-      .setMaxMemoryInMB(strategy.maxMemoryInMB)
   }
 
   /**
@@ -652,11 +653,10 @@ private[spark] object GCForestImpl extends Logging {
       println(s"[$getNowTime] Training Cascade Forest Layer $layer_id")
 
       val randomForests = (
-        Range(0, strategy.rfNum).map ( it => genRFClassifier("rfc", strategy, isScan = false, rng.nextInt + it))
+        Range(0, strategy.rfNum).map ( _ => "rfc" )
         ++
-        Range(strategy.rfNum, strategy.rfNum + strategy.crfNum).map (
-          it => genRFClassifier("crfc", strategy, isScan = false, rng.nextInt + it))
-        ).toArray[RandomForestCARTClassifier]
+        Range(strategy.rfNum, strategy.rfNum + strategy.crfNum).map ( _ => "crfc" )
+        ).toArray[String]
       assert(randomForests.length == strategy.rfNum + strategy.crfNum, "random Forests inValid!")
       // scanFeatures_*: (instanceId, label, features)
       timer.start("merge to produce training, testing and persist")
@@ -669,8 +669,8 @@ private[spark] object GCForestImpl extends Logging {
         .repartition(sc.defaultParallelism)
         .persist(StorageLevel.MEMORY_ONLY)
 
-      if (strategy.idebug) println(s"Estimate training: ${SizeEstimator.estimate(training) / (1024 * 1024.0)} M," +
-        s" testing: ${SizeEstimator.estimate(testing) / (1024 * 1024.0)} M")
+      if (strategy.idebug) println(s"Estimate training: %.1f M,".format(SizeEstimator.estimate(training) / 1048576.0) +
+        s" testing: %.1f M".format(SizeEstimator.estimate(testing) / 1048576.0))
       timer.stop("merge to produce training, testing and persist")
       if (strategy.idebug) println(s"[$getNowTime] timer.stop(merge to produce training, testing and persist)")
 
@@ -691,11 +691,11 @@ private[spark] object GCForestImpl extends Logging {
       println(s"[$getNowTime] Forests fitting and transforming ......")
       timer.start("randomForests training")
       if (strategy.idebug) println(s"[$getNowTime] timer.start(randomForests training)")
-      erfModels ++= randomForests.zipWithIndex.map { case (rf, it) =>
+      erfModels ++= randomForests.zipWithIndex.map { case (rf_type, it) =>
         timer.start("cvClassVectorGeneration")
         if (strategy.idebug) println(s"[$getNowTime] timer.start(cvClassVectorGeneration)")
         val transformed = cvClassVectorGeneratorWithValidation(
-          training, testing, rf, strategy.numFolds, strategy.seed, timer, strategy,
+          training, testing, rf_type, strategy.numFolds, strategy.seed, timer, strategy,
           isScan = false, s"layer [$layer_id] - estimator [$it]")
         timer.stop("cvClassVectorGeneration")
         if (strategy.idebug) println(s"[$getNowTime] timer.stop(cvClassVectorGeneration)")
@@ -789,8 +789,9 @@ private[spark] object GCForestImpl extends Logging {
       lastPrediction_test = sparkSession.createDataFrame(predictRDDs(1), schema)
 //        .persist(StorageLevel.MEMORY_ONLY)
       if (strategy.idebug)
-        println(s"[$getNowTime] Estimate lastPrediction: ${SizeEstimator.estimate(lastPrediction) / (1024 * 1024.0)}" +
-        s" M, lastPrediction_test: ${SizeEstimator.estimate(lastPrediction_test) / (1024 * 1024.0)} M")
+        println(s"[$getNowTime] Estimate lastPrediction: %.1f"
+          .format(SizeEstimator.estimate(lastPrediction) / 1048576.0) +
+        s" M, lastPrediction_test: %.1f M".format(SizeEstimator.estimate(lastPrediction_test) / 1048576.0))
       val outOfRounds =
         (strategy.earlyStopByTest && layer_id - opt_layer_id_test >= strategy.earlyStoppingRounds) ||
         (!strategy.earlyStopByTest && layer_id - opt_layer_id_train >= strategy.earlyStoppingRounds)

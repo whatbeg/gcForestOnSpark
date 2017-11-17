@@ -25,6 +25,7 @@ object GCForestSequence {
     spark.conf.set("spark.default.parallelism", parallelism)
     spark.conf.set("spark.locality.wait.node", 0)
 //    spark.conf.set("spark.history.fs.logDirectory", "/tmp/spark-events")
+    spark.sparkContext.setCheckpointDir("./checkpoint")
     spark.conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     spark.sparkContext.getConf.registerKryoClasses(Array(classOf[RandomForestCARTClassifier]))
 
@@ -36,8 +37,8 @@ object GCForestSequence {
 
       val train = new UCI_adult().load_data(spark, param.trainFile, param.featuresFile, 1, parallelism)
       val test = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, 1, parallelism)
-      if (param.idebug) println(s"Estimate trainset ${SizeEstimator.estimate(train) / (1024 * 1024.0)} M," +
-        s" testset: ${SizeEstimator.estimate(test) / (1024 * 1024.0)} M")
+      if (param.idebug) println(s"Estimate trainset %.1f M,".format(SizeEstimator.estimate(train) / 1048576.0) +
+        s" testset: %.1f M".format(SizeEstimator.estimate(test) / 1048576.0))
 
       val gcForest = new GCForestClassifier()
         .setDataSize(param.dataSize)
@@ -57,7 +58,7 @@ object GCForestSequence {
         .setCascadeForestMinInstancesPerNode(param.cascadeMinInsPerNode)
         .setEarlyStoppingRounds(param.earlyStoppingRounds)
         .setIDebug(param.idebug)
-      if (param.idebug) println(s"Estimate GCForestClassifier ${SizeEstimator.estimate(gcForest) / (1024 * 1024.0)} M")
+
       val model = gcForest.train(train, test)
       // model.save(output)
       model

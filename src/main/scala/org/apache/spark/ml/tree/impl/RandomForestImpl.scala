@@ -141,7 +141,7 @@ private[spark] object RandomForestImpl extends Logging {
     // Create an RDD of node Id cache.
     // At first, all the rows belong to the root nodes (node Id == 1).
     val nodeIdCache = if (strategy.useNodeIdCache) {
-      Some(NodeIdCache.init(
+      Some(NodeIDCache.init(
         data = baggedInput,
         numTrees = numTrees,
         checkpointInterval = strategy.checkpointInterval,
@@ -176,9 +176,9 @@ private[spark] object RandomForestImpl extends Logging {
       val (nodesForGroup, treeToNodeToIndexInfo) =
       RandomForestImpl.selectNodesToSplit(nodeStack, maxMemoryUsage, metadata, rng)
       timer.stop("selectNodesToSplit")
-      println(s"Random Forest Impl: Group $group nodes are selected," +
+      logWarning(s"Random Forest Impl: Group $group nodes are selected," +
         s" total ${nodesForGroup.values.map(_.length).sum} nodes," +
-        s" Size estimates: ${SizeEstimator.estimate(nodesForGroup) / (1024 * 1024.0)} M")
+        " Size estimates: %.1f M".format(SizeEstimator.estimate(nodesForGroup) / (1024 * 1024.0)))
       // Sanity check (should never occur):
       assert(nodesForGroup.nonEmpty,
         s"RandomForest selected empty nodesForGroup.  Error for unknown reason.")
@@ -198,7 +198,7 @@ private[spark] object RandomForestImpl extends Logging {
     baggedInput.unpersist()
 
     timer.stop("total")
-    println(s"nodeIDCache estimates Size: ${SizeEstimator.estimate(nodeIdCache) / (1024 * 1024.0)} M")
+    logWarning("nodeIDCache estimates Size: %.1f M".format(SizeEstimator.estimate(nodeIdCache) / (1024 * 1024.0)))
     println("Internal timing for RandomForest:")
     println(s"$timer")
 
@@ -361,7 +361,7 @@ private[spark] object RandomForestImpl extends Logging {
                                    splits: Array[Array[Split]],
                                    nodeStack: mutable.ArrayStack[(Int, LearningNode)],
                                    timer: TimeTracker = new TimeTracker,
-                                   nodeIdCache: Option[NodeIdCache] = None): Unit = {
+                                   nodeIdCache: Option[NodeIDCache] = None): Unit = {
 
     /*
      * The high-level descriptions of the best split optimizations are noted here.
@@ -541,7 +541,8 @@ private[spark] object RandomForestImpl extends Logging {
       }
     }
     timer.stop("findBestSplits - chooseSplits - get partitionAggregates")
-    println(s"partitionAggregators Estimates: ${SizeEstimator.estimate(partitionAggregates) / (1024 * 1024.0)} M")
+    logWarning(s"partitionAggregators Estimates: %.1f M"
+      .format(SizeEstimator.estimate(partitionAggregates) / (1024 * 1024.0)))
 
     timer.start("findBestSplits - chooseSplits - collectAsMap to master")
     val nodeToBestSplits = partitionAggregates.reduceByKey((a, b) => a.merge(b)).map {
@@ -556,7 +557,7 @@ private[spark] object RandomForestImpl extends Logging {
         (nodeIndex, (split, stats))
     }.collectAsMap()
     timer.stop("findBestSplits - chooseSplits - collectAsMap to master")
-    println(s"nodeToBestSplits Estimates: ${SizeEstimator.estimate(nodeToBestSplits) / (1024 * 1024.0)} M")
+    logWarning(s"nodeToBestSplits Estimates: %.1f M".format(SizeEstimator.estimate(nodeToBestSplits) / (1024 * 1024.0)))
     timer.stop("findBestSplits - chooseSplits")
 
     val nodeIdUpdaters = if (nodeIdCache.nonEmpty) {

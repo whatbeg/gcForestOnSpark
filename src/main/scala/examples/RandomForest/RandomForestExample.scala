@@ -28,6 +28,7 @@ object RandomForestExample {
     trainParser.parse(args, TrainParams()).map(param => {
 
       spark.sparkContext.setLogLevel(param.debugLevel)
+//      spark.sparkContext.setCheckpointDir("./checkpoint")
 
       val train = new UCI_adult().load_data(spark, param.trainFile, param.featuresFile, 1,
         if (param.parallelism > 0) param.parallelism else parallelism)
