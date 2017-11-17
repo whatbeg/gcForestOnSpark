@@ -259,7 +259,6 @@ private[spark] object GCForestImpl extends Logging {
         timer.stop(s"cvGenerator - cv - $splitIndex")
         if (strategy.idebug) println(s"[$getNowTime] timer.stop(cvGenerator - cv - $splitIndex)")
 
-        trainingDataset.unpersist()
         // rawPrediction == probabilityCol
         val val_result = model.transform(validationDataset).drop(strategy.featuresCol)
             .withColumnRenamed(strategy.probabilityCol, strategy.featuresCol)
@@ -278,7 +277,6 @@ private[spark] object GCForestImpl extends Logging {
         out_test = if (out_test == null) test_result
           else out_test.join(test_result, Seq(strategy.instanceCol, strategy.labelCol))
 
-        validationDataset.unpersist()
         model
     }
     timer.stop("Kfold split and fit")
