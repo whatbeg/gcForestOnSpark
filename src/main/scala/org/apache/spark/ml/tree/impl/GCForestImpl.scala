@@ -660,12 +660,12 @@ private[spark] object GCForestImpl extends Logging {
       timer.start("merge to produce training, testing and persist")
       if (strategy.idebug) println(s"[$getNowTime] timer.start(merge to produce training, testing and persist)")
       val training = mergeFeatureAndPredict(scanFeature_train, lastPrediction, strategy)
-        .repartition(sc.defaultParallelism)
-        .persist(StorageLevel.MEMORY_ONLY)
+        .coalesce(sc.defaultParallelism)
+        .persist(StorageLevel.MEMORY_ONLY_SER)
 
       val testing = mergeFeatureAndPredict(scanFeature_test, lastPrediction_test, strategy)
-        .repartition(sc.defaultParallelism)
-        .persist(StorageLevel.MEMORY_ONLY)
+        .coalesce(sc.defaultParallelism)
+        .persist(StorageLevel.MEMORY_ONLY_SER)
 
       if (strategy.idebug) println(s"Estimate training: %.1f M,".format(SizeEstimator.estimate(training) / 1048576.0) +
         s" testing: %.1f M".format(SizeEstimator.estimate(testing) / 1048576.0))
@@ -692,19 +692,24 @@ private[spark] object GCForestImpl extends Logging {
       erfModels ++= randomForests.zipWithIndex.map { case (rf_type, it) =>
         timer.start("cvClassVectorGeneration")
         if (strategy.idebug) println(s"[$getNowTime] timer.start(cvClassVectorGeneration)")
+
         val transformed = cvClassVectorGeneratorWithValidation(
           training, testing, rf_type, strategy.numFolds, strategy.seed, timer, strategy,
           isScan = false, s"layer [$layer_id] - estimator [$it]")
+
         timer.stop("cvClassVectorGeneration")
         if (strategy.idebug) println(s"[$getNowTime] timer.stop(cvClassVectorGeneration)")
         timer.start("add forestIdCol and Union")
         if (strategy.idebug) println(s"[$getNowTime] timer.start(add forestIdCol and Union)")
+
         val predict = transformed._1
           .withColumn(strategy.forestIdCol, lit(it))
           .select(strategy.instanceCol, strategy.featuresCol, strategy.forestIdCol)
+
         val predict_test = transformed._2
           .withColumn(strategy.forestIdCol, lit(it))
           .select(strategy.instanceCol, strategy.featuresCol, strategy.forestIdCol)
+
         ensemblePredict =
           if (ensemblePredict == null) predict else ensemblePredict.union(predict)
         ensemblePredict_test =
@@ -712,6 +717,7 @@ private[spark] object GCForestImpl extends Logging {
             .union(predict_test)
         timer.stop("add forestIdCol and Union")
         if (strategy.idebug) println(s"[$getNowTime] timer.stop(add forestIdCol and Union)")
+
         layer_train_metric = layer_train_metric + transformed._3
         layer_test_metric = layer_test_metric + transformed._4
 
@@ -719,6 +725,7 @@ private[spark] object GCForestImpl extends Logging {
           s"layer [$layer_id] - estimator [$it] Train.predict = ${transformed._3}")
         println(s"[$getNowTime] [Estimator Summary] " +
           s"layer [$layer_id] - estimator [$it]  Test.predict = ${transformed._4}")
+
         if (strategy.idebug) {
           println(s"[$getNowTime] Model ==========================================")
           println("total Number of Nodes: " + transformed._5.map(_.totalNumNodes).mkString(" , "))
@@ -730,8 +737,10 @@ private[spark] object GCForestImpl extends Logging {
         transformed._5
       }
       timer.stop("randomForests training")
+
       training.unpersist(blocking = false)
       testing.unpersist(blocking = false)
+
       if (strategy.idebug) println(s"[$getNowTime] timer.stop(randomForests training)")
       println(s"[$getNowTime] [Layer Summary] layer [$layer_id] - " +
         s"train.classifier.average = ${layer_train_metric.div(8d)}")
@@ -782,10 +791,13 @@ private[spark] object GCForestImpl extends Logging {
             "accuracy_test=%.3f%%".format(acc_list(1)(opt_layer_id_test)*100))
       }
       if (strategy.idebug) println(s"[$getNowTime] Not Persist but calculate lastPrediction and lastPrediction_test")
+
       lastPrediction = sparkSession.createDataFrame(predictRDDs(0), schema)
-//        .persist(StorageLevel.MEMORY_ONLY)
+        .coalesce(sc.defaultParallelism)
+
       lastPrediction_test = sparkSession.createDataFrame(predictRDDs(1), schema)
-//        .persist(StorageLevel.MEMORY_ONLY)
+        .coalesce(sc.defaultParallelism)
+
       if (strategy.idebug)
         println(s"[$getNowTime] Estimate lastPrediction: %.1f"
           .format(SizeEstimator.estimate(lastPrediction) / 1048576.0) +
@@ -813,6 +825,7 @@ private[spark] object GCForestImpl extends Logging {
 
     scanFeature_train.unpersist
     scanFeature_test.unpersist
+
     println(s"[$getNowTime] Cascade Forest Training Finished!")
     timer.stop("total")
     if (strategy.idebug) println(s"[$getNowTime] timer.stop(total)")
