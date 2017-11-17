@@ -18,6 +18,7 @@ import org.apache.spark.mllib.tree.impurity.ImpurityCalculator
 import org.apache.spark.mllib.tree.model.ImpurityStats
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
+import org.apache.spark.util.SizeEstimator
 import org.apache.spark.util.random.XORShiftRandom
 import org.apache.spark.utils.random.SamplingUtils
 
@@ -167,12 +168,17 @@ private[spark] object RandomForestImpl extends Logging {
     Range(0, numTrees).foreach(treeIndex => nodeStack.push((treeIndex, topNodes(treeIndex))))
 
     timer.stop("init")
-
+    var group = 1
     while (nodeStack.nonEmpty) {
       // Collect some nodes to split, and choose features for each node (if subsampling).
       // Each group of nodes may come from one or multiple trees, and at multiple levels.
+      timer.start("selectNodesToSplit")
       val (nodesForGroup, treeToNodeToIndexInfo) =
       RandomForestImpl.selectNodesToSplit(nodeStack, maxMemoryUsage, metadata, rng)
+      timer.stop("selectNodesToSplit")
+      println(s"Random Forest Impl: Group $group nodes are selected," +
+        s" total ${nodesForGroup.values.map(_.length).sum} nodes," +
+        s" Size estimates: ${SizeEstimator.estimate(nodesForGroup) / (1024 * 1024.0)} M")
       // Sanity check (should never occur):
       assert(nodesForGroup.nonEmpty,
         s"RandomForest selected empty nodesForGroup.  Error for unknown reason.")
@@ -186,12 +192,13 @@ private[spark] object RandomForestImpl extends Logging {
       RandomForestImpl.findBestSplits(baggedInput, metadata, topNodesForGroup, nodesForGroup,
         treeToNodeToIndexInfo, splits, nodeStack, timer, nodeIdCache)
       timer.stop("findBestSplits")
+      group += 1
     }
 
     baggedInput.unpersist()
 
     timer.stop("total")
-
+    println(s"nodeIDCache estimates Size: ${SizeEstimator.estimate(nodeIdCache) / (1024 * 1024.0)} M")
     println("Internal timing for RandomForest:")
     println(s"$timer")
 
@@ -534,6 +541,7 @@ private[spark] object RandomForestImpl extends Logging {
       }
     }
     timer.stop("findBestSplits - chooseSplits - get partitionAggregates")
+    println(s"partitionAggregators Estimates: ${SizeEstimator.estimate(partitionAggregates) / (1024 * 1024.0)} M")
 
     timer.start("findBestSplits - chooseSplits - collectAsMap to master")
     val nodeToBestSplits = partitionAggregates.reduceByKey((a, b) => a.merge(b)).map {
@@ -548,7 +556,7 @@ private[spark] object RandomForestImpl extends Logging {
         (nodeIndex, (split, stats))
     }.collectAsMap()
     timer.stop("findBestSplits - chooseSplits - collectAsMap to master")
-
+    println(s"nodeToBestSplits Estimates: ${SizeEstimator.estimate(nodeToBestSplits) / (1024 * 1024.0)} M")
     timer.stop("findBestSplits - chooseSplits")
 
     val nodeIdUpdaters = if (nodeIdCache.nonEmpty) {
@@ -568,10 +576,10 @@ private[spark] object RandomForestImpl extends Logging {
         val (split: Split, stats: ImpurityStats) =
           nodeToBestSplits(aggNodeIndex)
         logDebug("best split = " + split)
-
+        // println(s"Stats: ${stats.gain}")
         // Extract info for this node.  Create children if not leaf.
         val isLeaf =
-          (stats.gain <= 0) || (LearningNode.indexToLevel(nodeIndex) == metadata.maxDepth)
+          (stats.gain < metadata.minInfoGain) || (LearningNode.indexToLevel(nodeIndex) == metadata.maxDepth)
         node.isLeaf = isLeaf
         node.stats = stats
         logDebug("Node = " + node)

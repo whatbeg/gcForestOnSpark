@@ -21,6 +21,7 @@ object Utils {
                           MinInsPerNode: Int = 2,
                           maxBins: Int = 32,
                           maxDepth: Int = 30,
+                          minInfoGain: Double = 1e-6,
                           seed: Long = 123,
                           cacheNodeId: Boolean = true,
                           debugLevel: String = "ERROR",
@@ -56,6 +57,9 @@ object Utils {
     opt[Int]('d', "maxDepth")
       .text("random Forest max Depth, default: 30")
       .action((x, c) => c.copy(maxDepth = x))
+    opt[Double]('g', "minInfoGain")
+      .text("random Forest minInfoGain, default: 1e-6")
+      .action((x, c) => c.copy(minInfoGain = x))
     opt[Long]("seed")
       .text("random seed, default: 123L")
       .action((x, c) => c.copy(seed = x))

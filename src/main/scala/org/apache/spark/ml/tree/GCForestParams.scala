@@ -4,7 +4,7 @@
 
 package org.apache.spark.ml.tree
 
-import org.apache.spark.ml.param.{BooleanParam, IntArrayParam, IntParam, Param}
+import org.apache.spark.ml.param._
 import org.apache.spark.ml.param.shared.{HasSeed, HasTreeNumCol}
 
 
@@ -64,6 +64,10 @@ private[ml] trait GCForestParams extends HasSeed with HasTreeNumCol {
   setDefault(MaxDepth -> 30)
   def setMaxDepth(value: Int): this.type = set(MaxDepth, value)
 
+  final val minInfoGain: DoubleParam = new DoubleParam(this, "min Info Gain", "", (value: Double) => value >= 0)
+  setDefault(minInfoGain -> 1e-6)
+  def setMinInfoGain(value: Double): this.type = set(minInfoGain, value)
+
   final val numFolds: IntParam = new IntParam(this, "numFolds", "", (value: Int) => value > 0)
 
   setDefault(numFolds -> 3)
@@ -88,6 +92,16 @@ private[ml] trait GCForestParams extends HasSeed with HasTreeNumCol {
 
   def setDataSize(value: Array[Int]): this.type = set(dataSize, value)
   def getDataSize: Array[Int] = $(dataSize)
+
+  final val rfNum: IntParam =
+    new IntParam(this, "rfNum", "random forest num in cascade layer", (value: Int) => value >= 0)
+  setDefault(rfNum -> 4)
+  def setRFNum(value: Int): this.type = set(rfNum, value)
+
+  final val crfNum: IntParam =
+    new IntParam(this, "crfNum", "completely random forest num in cascade layer", (value: Int) => value >= 0)
+  setDefault(crfNum -> 4)
+  def setCRFNum(value: Int): this.type = set(crfNum, 4)
 
   final val windowCol: Param[String] = new Param[String](this, "windowCol", "windowId column name")
   setDefault(windowCol -> "window")

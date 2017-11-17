@@ -58,8 +58,8 @@ class GCBoostedTreeClassifier(override val uid: String)
   override def setMaxMemoryInMB(value: Int): GCBoostedTreeClassifier.this.type = set(maxMemoryInMB, value)
 
   def getGCForestStrategy: GCForestStrategy = {
-    GCForestStrategy($(classNum), $(multiScanWindow), $(dataSize), $(scanForestTreeNum),
-      $(cascadeForestTreeNum), $(scanMinInsPerNode), $(cascadeMinInsPerNode), $(MaxBins), $(MaxDepth),
+    GCForestStrategy($(classNum), $(multiScanWindow), $(dataSize), $(rfNum), $(crfNum), $(scanForestTreeNum),
+      $(cascadeForestTreeNum), $(scanMinInsPerNode), $(cascadeMinInsPerNode), $(MaxBins), $(MaxDepth), $(minInfoGain),
       $(MaxIteration), $(maxMemoryInMB), $(numFolds), $(earlyStoppingRounds), $(earlyStopByTest), $(dataStyle),
       $(seed), $(cacheNodeId), $(windowCol), $(scanCol), $(forestIdCol), $(idebug))
   }

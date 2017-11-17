@@ -8,19 +8,22 @@ import scopt.OptionParser
 
 object Utils {
   case class TrainParams(
-              trainFile: String = "./data/uci_adult/adult_2000.data",
+              trainFile: String = "./data/uci_adult/sample_adult.data",
               testFile: String = "./data/uci_adult/sample_adult.test",
               featuresFile: String = "./data/uci_adult/features",
               model: String = "./models/uci_adult",
               classNum: Int = 2,
               multiScanWindow: Array[Int] = Array(),
+              rfNum: Int = 1,
+              crfNum: Int = 1,
               scanForestTreeNum: Int = 2,
               cascadeForestTreeNum: Int = 500,
               scanMinInsPerNode: Int = 2,
               cascadeMinInsPerNode: Int = 2,
               maxBins: Int = 32,
               maxDepth: Int = 30,
-              maxIteration: Int = 10,
+              minInfoGain: Double = 1e-6,
+              maxIteration: Int = 20,
               maxMemoryInMB: Int = 2048,
               numFolds: Int = 3,
               earlyStoppingRounds: Int = 4,
@@ -39,7 +42,7 @@ object Utils {
               predictionCol: String = "prediction",
               featuresCol: String = "features",
               labelCol: String = "label",
-              idebug: Boolean = false)
+              idebug: Boolean = true)
 
   val trainParser = new OptionParser[TrainParams]("GCForest On Spark - UCI ADULT Example") {
     head("Train Multi-grain Scan Cascade Forest for UCI ADULT")
@@ -61,6 +64,12 @@ object Utils {
     opt[String]("msWin")
       .text("Multi-grain Scan Window, an Array contains length(Seq) or width and height(Img), default: (), format: x,y")
       .action((x, c) => c.copy(multiScanWindow = x.split(",").map(num => num.toInt).toSeq.toArray))
+    opt[Int]("rfNum")
+      .text("number of rf, default: 4")
+      .action((x, c) => c.copy(rfNum = x))
+    opt[Int]("crfNum")
+      .text("number of crf, default: 4")
+      .action((x, c) => c.copy(crfNum = x))
     opt[Int]("scanTreeNum")
       .text("scanning Forest tree Number, default: 2")
       .action((x, c) => c.copy(scanForestTreeNum = x))
@@ -79,6 +88,9 @@ object Utils {
     opt[Int]('d', "maxDepth")
       .text("random Forest max Depth, default: 30")
       .action((x, c) => c.copy(maxDepth = x))
+    opt[Double]('g', "minInfoGain")
+      .text("random Forest minInfoGain, default: 1e-6")
+      .action((x, c) => c.copy(minInfoGain = x))
     opt[Int]('i', "maxIteration")
       .text("max Iteration to grow cascade Forests, default: 10")
       .action((x, c) => c.copy(maxIteration = x))
