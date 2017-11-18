@@ -5,6 +5,7 @@ package org.apache.spark.ml.evaluation
 
 import org.apache.spark.sql.{Dataset, Row}
 import org.apache.spark.ml.linalg.Vector
+import org.apache.spark.rdd.RDD
 
 
 abstract class Evaluator {
@@ -45,22 +46,16 @@ object Evaluator {
     new Accuracy(rightCount.value, totalCount.value)
   }
 
-  //  def evaluateMapPartition(dataset: Dataset[_]): Accuracy = {
-  //    val schema = dataset.schema
-  //    val schema_string = schema.toArray.map { sch => sch.name }
-  //    require(schema_string.contains("instance"), "DataSet has no instance col")
-  //    require(schema_string.contains("label"), "DataSet has no label col")
-  //    require(schema_string.contains("features"), "DataSet has no features col")
-  //
-  //    dataset.rdd.mapPartition { case (rows: RDD[Row]) =>
-  //      val rightCount = rows.map { case (row: Row) =>
-  //        val features = row.getAs[Vector]("features")
-  //        val label = row.getAs[Double]("label")
-  //        if (features.argmax == label.toInt) 1 else 0
-  //      }.sum
-  //
-  //    }
-  //  }
+  // TODO
+  def evaluateMapPartition(dataset: Dataset[_]): Accuracy = {
+    val schema = dataset.schema
+    val schema_string = schema.toArray.map { sch => sch.name }
+    require(schema_string.contains("instance"), "DataSet has no instance col")
+    require(schema_string.contains("label"), "DataSet has no label col")
+    require(schema_string.contains("features"), "DataSet has no features col")
+
+    new Accuracy(0, 0)
+  }
 
   def evaluatePrediction(dataset: Dataset[_]): Accuracy = {
     val schema = dataset.schema

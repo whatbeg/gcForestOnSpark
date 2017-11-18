@@ -648,6 +648,8 @@ private[spark] object GCForestImpl extends Logging {
 
     while (!reachMaxLayer) {
 
+      val stime = System.currentTimeMillis()
+
       println(s"[$getNowTime] Training Cascade Forest Layer $layer_id")
 
       val randomForests = (
@@ -816,6 +818,7 @@ private[spark] object GCForestImpl extends Logging {
         println(s"[$getNowTime] " +
           s"[Result][Reach Max Layer] max_layer_num=$layer_id, " +
           s"accuracy_train=$layer_train_metric, accuracy_test=$layer_test_metric")
+      println(s"[$getNowTime] Layer $layer_id time cost: ${(System.currentTimeMillis() - stime) / 1000.0} s")
       layer_id += 1
       if (strategy.idebug) {
         println(s"Layer ${layer_id - 1} Time Summary")
