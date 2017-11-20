@@ -235,7 +235,7 @@ private[spark] object GCForestImpl extends Logging {
       strategy: GCForestStrategy,
       isScan: Boolean,
       message: String):
-  (DataFrame, DataFrame, Metric, Metric, Array[RandomForestCARTModel]) = {
+  (DataFrame, DataFrame, Metric, Metric, Array[String]) = {
     val schema = training.schema
     val sparkSession = training.sparkSession
     var out_train: DataFrame = null // closure need
@@ -276,8 +276,9 @@ private[spark] object GCForestImpl extends Logging {
           .select(strategy.instanceCol, strategy.labelCol, strategy.featuresCol+s"$splitIndex")
         out_test = if (out_test == null) test_result
           else out_test.join(test_result, Seq(strategy.instanceCol, strategy.labelCol))
-
-        model
+        val path = s"${strategy.modelPath}/$message-$numFolds-folds.train-$splitIndex.$rfc_class"
+        model.write.overwrite().save(path)
+        path
     }
     timer.stop("Kfold split and fit")
     if (strategy.idebug) println(s"[$getNowTime] timer.stop(Kfold split and fit)")
@@ -606,7 +607,7 @@ private[spark] object GCForestImpl extends Logging {
     if (strategy.idebug) println(s"[$getNowTime] timer.start(total)")
 
     val numClasses: Int = strategy.classNum
-    val erfModels = ArrayBuffer[Array[RandomForestCARTModel]]() // layer - (forest * fold)
+    val erfModels = ArrayBuffer[Array[String]]() // layer - (forest * fold), TODO: better representation to model
     val n_train = input.count()
     val n_test = validationInput.count()
 
@@ -647,8 +648,8 @@ private[spark] object GCForestImpl extends Logging {
     if (strategy.idebug) println(s"[$getNowTime] timer.stop(init)")
 
     while (!reachMaxLayer) {
-      println("Sleep 30 seconds ......")
-      Thread.sleep(30 * 1000)
+//      println("Sleep 30 seconds ......")
+//      Thread.sleep(30 * 1000)
 
       val stime = System.currentTimeMillis()
 
@@ -730,14 +731,13 @@ private[spark] object GCForestImpl extends Logging {
         println(s"[$getNowTime] [Estimator Summary] " +
           s"layer [$layer_id] - estimator [$it]  Test.predict = ${transformed._4}")
 
-        if (strategy.idebug) {
-          println(s"[$getNowTime] Model ==========================================")
-          println("total Number of Nodes: " + transformed._5.map(_.totalNumNodes).mkString(" , "))
-          println("Avg Depth: " +
-            (transformed._5.flatMap(_.trees.map(_.depth)).sum / (strategy.numFolds * strategy.cascadeForestTreeNum)))
-//          println("First Tree Structure: " + transformed._5(0).trees(0).toDebugString)
-          println(s"[$getNowTime] Model ==========================================")
-        }
+//        if (strategy.idebug) {
+//          println(s"[$getNowTime] Model ==========================================")
+//          println("total Number of Nodes: " + transformed._5.map(_.totalNumNodes).mkString(" , "))
+//          println("Avg Depth: " +
+//            (transformed._5.flatMap(_.trees.map(_.depth)).sum / (strategy.numFolds * strategy.cascadeForestTreeNum)))
+//          println(s"[$getNowTime] Model ==========================================")
+//        }
         transformed._5
       }
       timer.stop("randomForests training")
@@ -839,6 +839,6 @@ private[spark] object GCForestImpl extends Logging {
       println(s"[$getNowTime] Internal timing for GCForestImpl:")
       println(s"$timer")
     }
-    new GCForestClassificationModel(mgsModels ++ mgsModels_test, erfModels.toArray, numClasses)
+    new GCForestClassificationModel(mgsModels ++ mgsModels_test, Array[Array[RandomForestCARTModel]](), numClasses)
   }
 }

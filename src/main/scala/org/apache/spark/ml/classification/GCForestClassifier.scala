@@ -28,6 +28,8 @@ class GCForestClassifier(override val uid: String)
 
   override def setNumClasses(value: Int): this.type = set(classNum, value)
 
+  override def setModelPath(value: String): GCForestClassifier.this.type = set(modelPath, value)
+
   override def setDataSize(value: Array[Int]): this.type = set(dataSize, value)
 
   override def setDataStyle(value: String): this.type = set(dataStyle, value)
@@ -65,14 +67,14 @@ class GCForestClassifier(override val uid: String)
   override def setCRFNum(value: Int): GCForestClassifier.this.type = set(crfNum, value)
 
   def getGCForestStrategy: GCForestStrategy = {
-    GCForestStrategy($(classNum), $(multiScanWindow), $(dataSize), $(rfNum), $(crfNum), $(scanForestTreeNum),
-      $(cascadeForestTreeNum), $(scanMinInsPerNode), $(cascadeMinInsPerNode), $(MaxBins), $(MaxDepth), $(minInfoGain),
-      $(MaxIteration), $(maxMemoryInMB), $(numFolds), $(earlyStoppingRounds), $(earlyStopByTest), $(dataStyle),
-      $(seed), $(cacheNodeId), $(windowCol), $(scanCol), $(forestIdCol), $(idebug))
+    GCForestStrategy($(classNum), $(modelPath), $(multiScanWindow), $(dataSize), $(rfNum), $(crfNum),
+      $(scanForestTreeNum), $(cascadeForestTreeNum), $(scanMinInsPerNode), $(cascadeMinInsPerNode), $(MaxBins),
+      $(MaxDepth), $(minInfoGain), $(MaxIteration), $(maxMemoryInMB), $(numFolds), $(earlyStoppingRounds),
+      $(earlyStopByTest), $(dataStyle), $(seed), $(cacheNodeId), $(windowCol), $(scanCol), $(forestIdCol), $(idebug))
   }
 
   def getDefaultStrategy: GCForestStrategy = {
-    GCForestStrategy(2, Array(), Array(113), idebug = false)
+    GCForestStrategy(2, $(modelPath), Array(), Array(113), idebug = false)
   }
 
   def train(trainset: Dataset[_], testset: Dataset[_]): GCForestClassificationModel = {

@@ -5,6 +5,7 @@ package org.apache.spark.ml.tree.configuration
 
 case class GCForestStrategy(
                             var classNum: Int = 2,
+                            var modelPath: String = "./gcf_model",
                             var multiScanWindow: Array[Int],
                             var dataSize: Array[Int],
                             var rfNum: Int = 4,

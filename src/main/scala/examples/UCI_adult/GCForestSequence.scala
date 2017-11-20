@@ -24,7 +24,6 @@ object GCForestSequence {
     println(s"Create Spark Context Succeed! Parallelism is $parallelism")
     spark.conf.set("spark.default.parallelism", parallelism)
     spark.conf.set("spark.locality.wait.node", 0)
-//    spark.conf.set("spark.history.fs.logDirectory", "/tmp/spark-events")
     spark.sparkContext.setCheckpointDir("./checkpoint")
     spark.conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     spark.sparkContext.getConf.registerKryoClasses(Array(classOf[RandomForestCARTClassifier]))
@@ -41,6 +40,7 @@ object GCForestSequence {
         s" testset: %.1f M".format(SizeEstimator.estimate(test) / 1048576.0))
 
       val gcForest = new GCForestClassifier()
+        .setModelPath(param.model)
         .setDataSize(param.dataSize)
         .setDataStyle(param.dataStyle)
         .setMultiScanWindow(param.multiScanWindow)

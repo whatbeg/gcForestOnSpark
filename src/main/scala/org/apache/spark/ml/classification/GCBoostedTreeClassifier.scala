@@ -58,14 +58,15 @@ class GCBoostedTreeClassifier(override val uid: String)
   override def setMaxMemoryInMB(value: Int): GCBoostedTreeClassifier.this.type = set(maxMemoryInMB, value)
 
   def getGCForestStrategy: GCForestStrategy = {
-    GCForestStrategy($(classNum), $(multiScanWindow), $(dataSize), $(rfNum), $(crfNum), $(scanForestTreeNum),
-      $(cascadeForestTreeNum), $(scanMinInsPerNode), $(cascadeMinInsPerNode), $(MaxBins), $(MaxDepth), $(minInfoGain),
-      $(MaxIteration), $(maxMemoryInMB), $(numFolds), $(earlyStoppingRounds), $(earlyStopByTest), $(dataStyle),
-      $(seed), $(cacheNodeId), $(windowCol), $(scanCol), $(forestIdCol), $(idebug))
+    GCForestStrategy($(classNum), $(modelPath), $(multiScanWindow), $(dataSize), $(rfNum), $(crfNum),
+      $(scanForestTreeNum), $(cascadeForestTreeNum), $(scanMinInsPerNode), $(cascadeMinInsPerNode),
+      $(MaxBins), $(MaxDepth), $(minInfoGain), $(MaxIteration), $(maxMemoryInMB), $(numFolds),
+      $(earlyStoppingRounds), $(earlyStopByTest), $(dataStyle), $(seed), $(cacheNodeId), $(windowCol), $(scanCol),
+      $(forestIdCol), $(idebug))
   }
 
   def getDefaultStrategy: GCForestStrategy = {
-    GCForestStrategy(2, Array(), Array(113), idebug = false)
+    GCForestStrategy(2, $(modelPath), Array(), Array(113), idebug = false)
   }
 
   def train(trainset: Dataset[_], testset: Dataset[_]): GCBoostedTreeClassificationModel = {

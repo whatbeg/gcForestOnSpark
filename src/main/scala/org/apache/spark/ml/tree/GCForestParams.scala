@@ -16,6 +16,10 @@ private[ml] trait GCForestParams extends HasSeed with HasTreeNumCol {
   setDefault(classNum -> 2)
   def setNumClasses(value: Int): this.type = set(classNum, value)
 
+  final val modelPath: Param[String] = new Param[String](this, "modelPath", "")
+  setDefault(modelPath -> "./gcf_model")
+  def setModelPath(value: String): this.type = set(modelPath, value)
+
   final val multiScanWindow: IntArrayParam = new IntArrayParam(
     this, "multiScanWindow", "", (value: Array[Int]) => value.length >= 0)
 

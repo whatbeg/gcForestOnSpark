@@ -34,6 +34,7 @@ object GCBoostedTreeSeq {
       val test = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, 1, parallelism)
 
       val gbtForest = new GCBoostedTreeClassifier()
+        .setModelPath(param.model)
         .setDataSize(param.dataSize)
         .setDataStyle(param.dataStyle)
         .setMultiScanWindow(param.multiScanWindow)
