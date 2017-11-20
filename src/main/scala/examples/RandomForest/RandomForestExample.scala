@@ -17,7 +17,7 @@ object RandomForestExample {
 
     val spark = SparkSession.builder()
       .appName(this.getClass.getSimpleName)
-//      .master("local[*]")
+      .master("local[*]")
       .getOrCreate()
 
     val parallelism = Engine.getParallelism(spark.sparkContext)
@@ -25,7 +25,7 @@ object RandomForestExample {
     spark.conf.set("spark.default.parallelism", parallelism)
     spark.conf.set("spark.locality.wait.node", 0)
 
-    trainParser.parse(args, TrainParams()).map(param => {
+    trainParser.parse(args, TrainParams()).foreach(param => {
 
       spark.sparkContext.setLogLevel(param.debugLevel)
 //      spark.sparkContext.setCheckpointDir("./checkpoint")
@@ -36,27 +36,38 @@ object RandomForestExample {
         if (param.parallelism > 0) param.parallelism else parallelism)
 
       println(s"Estimate trainset ${SizeEstimator.estimate(train)}, testset: ${SizeEstimator.estimate(test)}")
-      val stime = System.currentTimeMillis()
-      val randomForest = new RandomForestCARTClassifier()
-        .setMaxBins(param.maxBins)
-        .setMaxDepth(param.maxDepth)
-        .setMinInstancesPerNode(param.MinInsPerNode)
-        .setMinInfoGain(param.minInfoGain)
-        .setNumTrees(param.ForestTreeNum)
-        .setSeed(param.seed)
-        .setCacheNodeIds(param.cacheNodeId)
 
-      val model = randomForest.fit(train)
-      println(s"Fit a random forest in Spark cost ${(System.currentTimeMillis() - stime) / 1000.0} s")
+      val models = Range(0, param.count).map { _ =>
+        val stime = System.currentTimeMillis()
+        val randomForest = new RandomForestCARTClassifier()
+          .setMaxBins(param.maxBins)
+          .setMaxDepth(param.maxDepth)
+          .setMinInstancesPerNode(param.MinInsPerNode)
+          .setMinInfoGain(param.minInfoGain)
+          .setNumTrees(param.ForestTreeNum)
+          .setSeed(param.seed)
+          .setCacheNodeIds(param.cacheNodeId)
 
-      val predictions = model.transform(test)
+        val model = randomForest.fit(train)
+        println("Model Size estimates: %.1f M".format(SizeEstimator.estimate(model) / 1048576.0))
+        println(s"Fit a random forest in Spark cost ${(System.currentTimeMillis() - stime) / 1000.0} s")
+        Thread.sleep(60 * 1000)
+        model.write.overwrite().save("ttt.model")
+        model
+      }
 
-      // Select example rows to display.
-      predictions.select("probability", "label", "features").show(5)
-      val accuracy = Evaluator.evaluate(predictions.withColumnRenamed("probability", "features"))
+      println("Training End, Sleep 20 seconds")
+      Thread.sleep(20 * 1000)
 
-      println(s"[${getNowTime}] Test Accuracy = " + accuracy)
-      model
+//      val model = models(0)
+//      val predictions = model.transform(test)
+//
+//      // Select example rows to display.
+//      predictions.select("probability", "label", "features").show(5)
+//      val accuracy = Evaluator.evaluate(predictions.withColumnRenamed("probability", "features"))
+//
+//      println(s"[$getNowTime] Test Accuracy = " + accuracy)
+//      model
     })
     spark.stop()
   }

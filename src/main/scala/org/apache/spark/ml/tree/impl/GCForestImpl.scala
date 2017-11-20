@@ -647,6 +647,8 @@ private[spark] object GCForestImpl extends Logging {
     if (strategy.idebug) println(s"[$getNowTime] timer.stop(init)")
 
     while (!reachMaxLayer) {
+      println("Sleep 30 seconds ......")
+      Thread.sleep(30 * 1000)
 
       val stime = System.currentTimeMillis()
 

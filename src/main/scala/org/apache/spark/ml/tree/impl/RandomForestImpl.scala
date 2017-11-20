@@ -169,6 +169,7 @@ private[spark] object RandomForestImpl extends Logging {
 
     timer.stop("init")
     var group = 1
+    var totalNodes = 0
     while (nodeStack.nonEmpty) {
       // Collect some nodes to split, and choose features for each node (if subsampling).
       // Each group of nodes may come from one or multiple trees, and at multiple levels.
@@ -176,6 +177,7 @@ private[spark] object RandomForestImpl extends Logging {
       val (nodesForGroup, treeToNodeToIndexInfo) =
       RandomForestImpl.selectNodesToSplit(nodeStack, maxMemoryUsage, metadata, rng)
       timer.stop("selectNodesToSplit")
+      totalNodes += nodesForGroup.values.map(_.length).sum
       logWarning(s"Random Forest Impl: Group $group nodes are selected," +
         s" total ${nodesForGroup.values.map(_.length).sum} nodes," +
         " Size estimates: %.1f M".format(SizeEstimator.estimate(nodesForGroup) / (1024 * 1024.0)))
@@ -201,6 +203,7 @@ private[spark] object RandomForestImpl extends Logging {
     logWarning("nodeIDCache estimates Size: %.1f M".format(SizeEstimator.estimate(nodeIdCache) / (1024 * 1024.0)))
     println("Internal timing for RandomForest:")
     println(s"$timer")
+    println(s"Total nodes: $totalNodes")
 
     // Delete any remaining checkpoints used for node Id cache.
     if (nodeIdCache.nonEmpty) {

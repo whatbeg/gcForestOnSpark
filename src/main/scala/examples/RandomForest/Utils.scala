@@ -12,7 +12,7 @@ object Utils {
   val dateFormat: SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS")
   def getNowTime = dateFormat.format(new Date())
   case class TrainParams(
-                          trainFile: String = "./data/uci_adult/adult.data",
+                          trainFile: String = "./data/uci_adult/adult_2000.data",
                           testFile: String = "./data/uci_adult/sample_adult.test",
                           featuresFile: String = "./data/uci_adult/features",
                           model: String = "./models/uci_adult",
@@ -23,6 +23,7 @@ object Utils {
                           maxDepth: Int = 30,
                           minInfoGain: Double = 1e-6,
                           seed: Long = 123,
+                          count: Int = 3,
                           cacheNodeId: Boolean = true,
                           debugLevel: String = "ERROR",
                           idebug: Boolean = false,
@@ -57,6 +58,9 @@ object Utils {
     opt[Int]('d', "maxDepth")
       .text("random Forest max Depth, default: 30")
       .action((x, c) => c.copy(maxDepth = x))
+    opt[Int]('c', "count")
+      .text("number of RF to train, default: 3")
+      .action((x, c) => c.copy(count = x))
     opt[Double]('g', "minInfoGain")
       .text("random Forest minInfoGain, default: 1e-6")
       .action((x, c) => c.copy(minInfoGain = x))
