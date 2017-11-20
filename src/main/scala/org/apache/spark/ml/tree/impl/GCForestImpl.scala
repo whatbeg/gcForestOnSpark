@@ -234,7 +234,8 @@ private[spark] object GCForestImpl extends Logging {
       timer: TimeTracker,
       strategy: GCForestStrategy,
       isScan: Boolean,
-      message: String):
+      layer_id: Int,
+      estimator_id: Int):
   (DataFrame, DataFrame, Metric, Metric, Array[String]) = {
     val schema = training.schema
     val sparkSession = training.sparkSession
@@ -242,7 +243,7 @@ private[spark] object GCForestImpl extends Logging {
     var out_test: DataFrame = null // closure need
 
     require(schema.equals(testing.schema))
-
+    val message = s"layer [$layer_id] - estimator [$estimator_id]"
     // cross-validation for k classes distribution features
     var train_metric = new Accuracy(0, 0)
     timer.start("Kfold split and fit")
@@ -276,7 +277,7 @@ private[spark] object GCForestImpl extends Logging {
           .select(strategy.instanceCol, strategy.labelCol, strategy.featuresCol+s"$splitIndex")
         out_test = if (out_test == null) test_result
           else out_test.join(test_result, Seq(strategy.instanceCol, strategy.labelCol))
-        val path = s"${strategy.modelPath}/$message-$numFolds-folds.train-$splitIndex.$rfc_class"
+        val path = s"${strategy.modelPath}/layer-$layer_id-est-$estimator_id-$numFolds-folds-$splitIndex-$rfc_class"
         model.write.overwrite().save(path)
         path
     }
@@ -700,7 +701,7 @@ private[spark] object GCForestImpl extends Logging {
 
         val transformed = cvClassVectorGeneratorWithValidation(
           training, testing, rf_type, strategy.numFolds, strategy.seed, timer, strategy,
-          isScan = false, s"layer [$layer_id] - estimator [$it]")
+          isScan = false, layer_id, it)
 
         timer.stop("cvClassVectorGeneration")
         if (strategy.idebug) println(s"[$getNowTime] timer.stop(cvClassVectorGeneration)")
