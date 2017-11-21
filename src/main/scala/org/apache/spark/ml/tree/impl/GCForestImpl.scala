@@ -681,7 +681,7 @@ private[spark] object GCForestImpl extends Logging {
       timer.stop("merge to produce training, testing and persist")
       if (strategy.idebug) println(s"[$getNowTime] timer.stop(merge to produce training, testing and persist)")
 
-      val features_dim = training.first().mkString.split(",").length
+      val features_dim = training.first().mkString.split(",").length  // action, get training truly
 
       println(s"[$getNowTime] Training Set = ($n_train, $features_dim), " +
         s"Testing Set = ($n_test, $features_dim)")
@@ -746,8 +746,8 @@ private[spark] object GCForestImpl extends Logging {
       }
       timer.stop("randomForests training")
 
-      training.unpersist(blocking = false)
-      testing.unpersist(blocking = false)
+      training.unpersist(blocking = true)
+      testing.unpersist(blocking = true)
 
       if (strategy.idebug) println(s"[$getNowTime] timer.stop(randomForests training)")
       println(s"[$getNowTime] [Layer Summary] layer [$layer_id] - " +

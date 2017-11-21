@@ -5,10 +5,8 @@
 package org.apache.spark.ml.evaluation
 
 class Accuracy(private var rightCount: Double, private var totalCount: Double) extends Metric {
-  private val denom = if (totalCount <= 0) 1.0 else totalCount
-  private val accuracy = rightCount / denom
 
-  def getAccuracy: Double = accuracy
+  def getAccuracy: Double = rightCount / (if (totalCount <= 0) 1.0 else totalCount)
 
   def +(that: Accuracy): Accuracy = {
     this.rightCount += that.rightCount
@@ -35,7 +33,7 @@ class Accuracy(private var rightCount: Double, private var totalCount: Double) e
   }
 
   override def toString: String = {
-    s"Accuracy($rightCount / $totalCount = %.3f%%)".format(accuracy * 100.0)
+    s"Accuracy($rightCount / $totalCount = %.3f%%)".format(getAccuracy * 100.0)
   }
 
   def equals(obj: Accuracy): Boolean = {
