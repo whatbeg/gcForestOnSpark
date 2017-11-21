@@ -268,12 +268,10 @@ private[spark] object GCForestImpl extends Logging {
         if (!isScan) {
           val val_acc = Evaluator.evaluate(val_result)
           train_metric += val_acc
-          // println(s"train_metric += $val_acc")
           println(s"[$getNowTime] $message ${numFolds}_folds.train_$splitIndex = $val_acc")
         }
 
-        val test_result = model.transform(testing)
-          .withColumnRenamed(strategy.probabilityCol, strategy.featuresCol+s"$splitIndex")
+        val test_result = model.transform(testing, strategy.featuresCol+s"$splitIndex")
           .select(strategy.instanceCol, strategy.labelCol, strategy.featuresCol+s"$splitIndex")
         out_test = if (out_test == null) test_result
           else out_test.join(test_result, Seq(strategy.instanceCol, strategy.labelCol))
@@ -834,8 +832,8 @@ private[spark] object GCForestImpl extends Logging {
       }
     }
 
-    scanFeature_train.unpersist
-    scanFeature_test.unpersist
+    scanFeature_train.unpersist()
+    scanFeature_test.unpersist()
 
     println(s"[$getNowTime] Cascade Forest Training Finished!")
     timer.stop("total")

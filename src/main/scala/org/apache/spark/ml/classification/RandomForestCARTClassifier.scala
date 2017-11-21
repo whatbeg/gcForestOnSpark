@@ -197,6 +197,16 @@ class RandomForestCARTModel private[ml](@Since("1.5.0") override val uid: String
     dataset.withColumn($(probabilityCol), probabilityUDF(col($(featuresCol))))
   }
 
+  def transform(dataset: Dataset[_], newCol: String): DataFrame = {
+    transformSchema(dataset.schema, logging = true)
+
+    val bcastModel = dataset.sparkSession.sparkContext.broadcast(this)
+    val probabilityUDF = udf { (features: Any) =>
+      bcastModel.value.predictProbability(features.asInstanceOf[Vector])
+    }
+    dataset.withColumn(newCol, probabilityUDF(col($(featuresCol))))
+  }
+
   override protected def predictRaw(features: Vector): Vector = {
     // TODO: When we add a generic Bagging class, handle transform there: SPARK-7128
     // Classifies using majority votes.
