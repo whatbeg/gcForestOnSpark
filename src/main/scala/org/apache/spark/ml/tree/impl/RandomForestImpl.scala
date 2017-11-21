@@ -14,7 +14,7 @@ import org.apache.spark.ml.regression.DecisionTreeRegressionModel
 import org.apache.spark.ml.tree._
 import org.apache.spark.ml.util.Instrumentation
 import org.apache.spark.mllib.tree.configuration.{Algo => OldAlgo, Strategy => OldStrategy}
-import org.apache.spark.mllib.tree.impurity.ImpurityCalculator
+import org.apache.spark.mllib.tree.impurity.{GiniAggregator, GiniCalculator, ImpurityCalculator}
 import org.apache.spark.mllib.tree.model.ImpurityStats
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
@@ -81,7 +81,8 @@ private[spark] object RandomForestImpl extends Logging {
           parentUID: Option[String] = None): Array[DecisionTreeModel] = {
     // register KryoClasses
     input.sparkContext.conf.registerKryoClasses(Array(classOf[DTStatsAggregator], classOf[ImpurityStats],
-      classOf[LearningNode], classOf[NodeIndexInfo], classOf[CategoricalSplit], classOf[ContinuousSplit]))
+      classOf[LearningNode], classOf[NodeIndexInfo], classOf[CategoricalSplit], classOf[ContinuousSplit],
+      classOf[ImpurityCalculator], classOf[GiniCalculator], classOf[GiniAggregator]))
 
     val timer = new TimeTracker()
 

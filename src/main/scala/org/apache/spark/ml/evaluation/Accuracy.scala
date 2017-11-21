@@ -4,32 +4,34 @@
 
 package org.apache.spark.ml.evaluation
 
-class Accuracy(right: Double, total: Double) extends Metric {
-  val rightCount: Double = right
-  val totalCount: Double = total
-  private val denom = if (total <= 0) 1.0 else total
-  private val accuracy = right / denom
+class Accuracy(private var rightCount: Double, private var totalCount: Double) extends Metric {
+  private val denom = if (totalCount <= 0) 1.0 else totalCount
+  private val accuracy = rightCount / denom
 
   def getAccuracy: Double = accuracy
 
   def +(that: Accuracy): Accuracy = {
-    val new_right = this.rightCount + that.rightCount
-    val new_total = this.totalCount + that.totalCount
-    new Accuracy(new_right, new_total)
+    this.rightCount += that.rightCount
+    this.totalCount += that.totalCount
+    this
   }
 
   override def +(that: Metric): Accuracy = {
     require(that.isInstanceOf[Accuracy], "Not an Accuracy Object")
-    new Accuracy(this.rightCount + that.asInstanceOf[Accuracy].rightCount,
-      this.totalCount + that.asInstanceOf[Accuracy].totalCount)
+    this.rightCount += that.asInstanceOf[Accuracy].rightCount
+    this.totalCount += that.asInstanceOf[Accuracy].totalCount
+    this
   }
 
   override def /(value: Double): Accuracy = {
-    new Accuracy(this.rightCount / value, this.totalCount)
+    this.rightCount /= value
+    this
   }
 
   def div(value: Double): Accuracy = {
-    new Accuracy(this.rightCount / value, this.totalCount / value)
+    this.rightCount /= value
+    this.totalCount /= value
+    this
   }
 
   override def toString: String = {
@@ -38,5 +40,11 @@ class Accuracy(right: Double, total: Double) extends Metric {
 
   def equals(obj: Accuracy): Boolean = {
     (this.rightCount == obj.rightCount) && (this.totalCount == obj.totalCount)
+  }
+
+  def reset(): Accuracy = {
+    this.rightCount = 0.0
+    this.totalCount = 0.0
+    this
   }
 }

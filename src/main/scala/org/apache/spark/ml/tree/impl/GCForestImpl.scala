@@ -638,6 +638,11 @@ private[spark] object GCForestImpl extends Logging {
     var lastPrediction: DataFrame = null
     var lastPrediction_test: DataFrame = null
     val acc_list = Array(ArrayBuffer[Double](), ArrayBuffer[Double]())
+    var ensemblePredict: DataFrame = null  // closure need
+    var ensemblePredict_test: DataFrame = null  // closure need
+
+    var layer_train_metric: Accuracy = new Accuracy(0, 0)  // closure need
+    var layer_test_metric: Accuracy = new Accuracy(0, 0)  // closure need
 
     // Init classifiers
     val maxIteration = strategy.maxIteration
@@ -686,11 +691,11 @@ private[spark] object GCForestImpl extends Logging {
 //      if (lastPrediction != null) lastPrediction.unpersist(blocking = false)
 //      if (lastPrediction_test != null) lastPrediction_test.unpersist(blocking = false)
 
-      var ensemblePredict: DataFrame = null  // closure need
-      var ensemblePredict_test: DataFrame = null  // closure need
+      ensemblePredict = null
+      ensemblePredict_test = null
 
-      var layer_train_metric: Accuracy = new Accuracy(0, 0)  // closure need
-      var layer_test_metric: Accuracy = new Accuracy(0, 0)  // closure need
+      layer_train_metric.reset()
+      layer_test_metric.reset()
 
       println(s"[$getNowTime] Forests fitting and transforming ......")
       timer.start("randomForests training")
