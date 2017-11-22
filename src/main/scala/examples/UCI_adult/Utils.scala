@@ -12,6 +12,7 @@ object Utils {
               testFile: String = "./data/uci_adult/sample_adult.test",
               featuresFile: String = "./data/uci_adult/features",
               model: String = "./models/uci_adult",
+              checkpointDir: String = "./checkpoint",
               classNum: Int = 2,
               multiScanWindow: Array[Int] = Array(),
               rfNum: Int = 1,
@@ -53,11 +54,14 @@ object Utils {
       .text("where you put your testing files, default: ./data/uci_adult/sample_adult.test")
       .action((x, c) => c.copy(testFile = x))
     opt[String]("features")
-      .text("where you put your features files, default: ./data/uci_adult/sample_adult.test")
+      .text("where you put your features files, default: ./data/uci_adult/features")
       .action((x, c) => c.copy(featuresFile = x))
     opt[String]("model")
       .text("where you put your trained model, default: ./models/uci_adult")
       .action((x, c) => c.copy(model = x))
+    opt[String]("checkpointDir")
+      .text("where you put your checkpoint, default: ./checkpoint")
+      .action((x, c) => c.copy(checkpointDir = x))
     opt[Int]("classNum")
       .text("number of Classes, default: 2")
       .action((x, c) => c.copy(classNum = x))

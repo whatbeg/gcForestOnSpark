@@ -24,14 +24,13 @@ object GCForestSequence {
     println(s"Create Spark Context Succeed! Parallelism is $parallelism")
     spark.conf.set("spark.default.parallelism", parallelism)
     spark.conf.set("spark.locality.wait.node", 0)
-    spark.sparkContext.setCheckpointDir("./checkpoint")
     spark.conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     spark.sparkContext.getConf.registerKryoClasses(Array(classOf[RandomForestCARTClassifier]))
 
     trainParser.parse(args, TrainParams()).map(param => {
 
       spark.sparkContext.setLogLevel(param.debugLevel)
-
+      spark.sparkContext.setCheckpointDir(param.checkpointDir)
       val output = param.model
 
       val train = new UCI_adult().load_data(spark, param.trainFile, param.featuresFile, 1, parallelism)

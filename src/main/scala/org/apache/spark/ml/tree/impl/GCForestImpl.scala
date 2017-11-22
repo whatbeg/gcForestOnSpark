@@ -839,10 +839,9 @@ private[spark] object GCForestImpl extends Logging {
     timer.stop("total")
     if (strategy.idebug) println(s"[$getNowTime] timer.stop(total)")
 
-    if (strategy.idebug) {
-      println(s"[$getNowTime] Internal timing for GCForestImpl:")
-      println(s"$timer")
-    }
+    println(s"[$getNowTime] Internal timing for GCForestImpl:")
+    println(s"$timer")
+
     new GCForestClassificationModel(mgsModels ++ mgsModels_test, Array[Array[RandomForestCARTModel]](), numClasses)
   }
 }
