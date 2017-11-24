@@ -49,10 +49,10 @@ class UCI_adult extends BaseDatasets {
       .zipWithIndex.map { case (row, idx) =>
       val line = row.getAs[String]("value")
       val splits = line.split(",")
-      require(splits.length == 15, s"row ${idx}: ${line} has no 15 features, length: ${row.length}")
+      require(splits.length == 15, s"row $idx: $line has no 15 features, length: ${row.length}")
       val label = if (splits(14).contains("<=50K")) 0.0d else 1.0d
-      val data = splits.dropRight(1).zipWithIndex.map { case (feature, idx) =>
-        f_parsers_array(idx).get_data(feature.trim)
+      val data = splits.dropRight(1).zipWithIndex.map { case (feature, indx) =>
+        f_parsers_array(indx).get_data(feature.trim)
       }.reduce((l, r) => l ++ r)
       require(data.length == total_dims,
         "Total dims %d not equal to data.length %d".format(total_dims, data.length))

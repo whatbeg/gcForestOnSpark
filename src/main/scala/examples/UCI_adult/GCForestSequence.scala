@@ -7,7 +7,7 @@ import org.apache.spark.ml.classification.{GCForestClassifier, RandomForestCARTC
 import datasets.UCI_adult
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.util.SizeEstimator
-import org.apache.spark.utils.engine.Engine
+import org.apache.spark.ml.util.engine.Engine
 
 
 object GCForestSequence {

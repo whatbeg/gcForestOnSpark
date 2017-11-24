@@ -5,9 +5,9 @@ package examples.GradientBoosting
 
 import datasets.UCI_adult
 import org.apache.spark.ml.classification.GradientBoostingTreeClassifier
-import org.apache.spark.ml.evaluation.Evaluator
+import org.apache.spark.ml.evaluation.gcForestEvaluator
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.utils.engine.Engine
+import org.apache.spark.ml.util.engine.Engine
 
 object MyGBTExample {
   def main(args: Array[String]): Unit = {
@@ -44,8 +44,8 @@ object MyGBTExample {
       val predictions = model.transform(testData)
       predictions.select("probability", "label", "features").show(5)
 
-      val accuracy = Evaluator.evaluate(predictions.withColumnRenamed("probability", "features"))
-      println(s"[${getNowTime}] Test Accuracy = " + accuracy)
+      val accuracy = gcForestEvaluator.evaluate(predictions.withColumnRenamed("probability", "features"))
+      println(s"[$getNowTime] Test Accuracy = " + accuracy)
       if (param.idebug) println("Learned classification GBT model:\n" + model.toDebugString)
       if (param.idebug) println("Total Num nodes: " + model.totalNumNodes)
       if (param.idebug) println("Total Trees: " + model.getNumTrees)

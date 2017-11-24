@@ -5,9 +5,9 @@ package examples.RandomForest
 
 import datasets.UCI_adult
 import org.apache.spark.ml.classification.CompletelyRandomForestClassifier
-import org.apache.spark.ml.evaluation.Evaluator
+import org.apache.spark.ml.evaluation.gcForestEvaluator
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.utils.engine.Engine
+import org.apache.spark.ml.util.engine.Engine
 
 object CompletelyRandomForestExample {
   def main(args: Array[String]): Unit = {
@@ -47,10 +47,12 @@ object CompletelyRandomForestExample {
 
       // Select example rows to display.
       predictions.select("probability", "label", "features").show(5)
-      val accuracy = Evaluator.evaluate(predictions.withColumnRenamed("probability", "features"))
+      val accuracy = gcForestEvaluator
+        .evaluate(predictions.withColumnRenamed("probability", "features"))
 
-      println(s"[${getNowTime}] Test Accuracy = " + accuracy)
-      if (param.idebug) println("Learned classification Random Forest model:\n" + model.toDebugString)
+      println(s"[$getNowTime] Test Accuracy = " + accuracy)
+      if (param.idebug)
+        println("Learned classification Random Forest model:\n" + model.toDebugString)
 
       model
     })

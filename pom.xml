@@ -151,6 +151,15 @@
                 </executions>
             </plugin>
         </plugins>
+        <resources>
+            <resource>
+                <targetPath>lib/</targetPath>
+                <directory>lib/</directory>
+                <includes>
+                    <include>${project.basedir}/lib/spark-mllib_2.11-2.2.0.jar</include>
+                </includes>
+            </resource>
+        </resources>
     </build>
 
 </project>

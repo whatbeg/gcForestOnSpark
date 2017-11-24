@@ -5,10 +5,10 @@ package examples.RandomForest
 
 import datasets.UCI_adult
 import org.apache.spark.ml.classification.RandomForestCARTClassifier
-import org.apache.spark.ml.evaluation.Evaluator
+import org.apache.spark.ml.evaluation.gcForestEvaluator
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.util.SizeEstimator
-import org.apache.spark.utils.engine.Engine
+import org.apache.spark.ml.util.engine.Engine
 
 object RandomForestExample {
   def main(args: Array[String]): Unit = {
@@ -17,7 +17,7 @@ object RandomForestExample {
 
     val spark = SparkSession.builder()
       .appName(this.getClass.getSimpleName)
-      .master("local[*]")
+//      .master("local[*]")
       .getOrCreate()
 
     val parallelism = Engine.getParallelism(spark.sparkContext)
@@ -37,7 +37,7 @@ object RandomForestExample {
 
       println(s"Estimate trainset ${SizeEstimator.estimate(train)}, testset: ${SizeEstimator.estimate(test)}")
 
-      val models = Range(0, param.count).map { _ =>
+      Range(0, param.count).foreach { _ =>
         val stime = System.currentTimeMillis()
         val randomForest = new RandomForestCARTClassifier()
           .setMaxBins(param.maxBins)
@@ -52,8 +52,6 @@ object RandomForestExample {
         println("Model Size estimates: %.1f M".format(SizeEstimator.estimate(model) / 1048576.0))
         println(s"Fit a random forest in Spark cost ${(System.currentTimeMillis() - stime) / 1000.0} s")
         Thread.sleep(60 * 1000)
-        model.write.overwrite().save("ttt.model")
-        model
       }
 
       println("Training End, Sleep 20 seconds")
@@ -64,7 +62,7 @@ object RandomForestExample {
 //
 //      // Select example rows to display.
 //      predictions.select("probability", "label", "features").show(5)
-//      val accuracy = Evaluator.evaluate(predictions.withColumnRenamed("probability", "features"))
+//      val accuracy = gcForestEvaluator.evaluate(predictions.withColumnRenamed("probability", "features"))
 //
 //      println(s"[$getNowTime] Test Accuracy = " + accuracy)
 //      model

@@ -4,7 +4,7 @@
 package examples.Image
 
 import org.apache.spark.ml.classification.GCForestClassifier
-import org.apache.spark.ml.linalg.DenseVector
+import org.apache.spark.mllib.linalg.DenseVector
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{ArrayType, DoubleType, StructField, StructType}
 import org.apache.spark.sql.{Row, SparkSession}

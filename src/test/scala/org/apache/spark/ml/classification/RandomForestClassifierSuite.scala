@@ -7,7 +7,7 @@ import java.io.File
 
 import datasets.UCI_adult
 import org.apache.spark.ml.Utils.SparkUnitTest
-import org.apache.spark.ml.evaluation.Evaluator
+import org.apache.spark.ml.evaluation.{Evaluator, gcForestEvaluator}
 
 import scala.util.Random
 
@@ -30,7 +30,7 @@ class RandomForestClassifierSuite extends SparkUnitTest {
       val test_result = model.transform(testing)
         .drop("features").drop("rawPrediction").drop("prediction")
         .withColumnRenamed("probability", "features")
-      val acc = Evaluator.evaluate(test_result)
+      val acc = gcForestEvaluator.evaluate(test_result)
       println(acc)
       acc.getAccuracy
     }
