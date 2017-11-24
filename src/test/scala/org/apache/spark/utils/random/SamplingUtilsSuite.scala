@@ -4,6 +4,7 @@
 package org.apache.spark.utils.random
 
 import org.apache.spark.ml.Utils.SparkUnitTest
+import org.apache.spark.ml.util.random.SamplingUtils
 
 import scala.util.Random
 

@@ -6,7 +6,7 @@ package examples.UCI_adult
 import org.apache.spark.ml.classification.GCBoostedTreeClassifier
 import datasets.UCI_adult
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.utils.engine.Engine
+import org.apache.spark.ml.util.engine.Engine
 
 
 object GCBoostedTreeSeq {
