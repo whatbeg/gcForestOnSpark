@@ -55,15 +55,16 @@ object GCForestSequence {
         .setCacheNodeId(param.cacheNodeId)
         .setScanForestMinInstancesPerNode(param.scanMinInsPerNode)
         .setCascadeForestMinInstancesPerNode(param.cascadeMinInsPerNode)
+        .setFeatureSubsetStrategy(param.featureSubsetStrategy)
         .setEarlyStoppingRounds(param.earlyStoppingRounds)
         .setIDebug(param.idebug)
 
       val model = gcForest.train(train, test)
-      // model.save(output)
       model
     })
     val totalTime = (System.currentTimeMillis() - stime) / 1000.0
-    println(s"Total time for GCForest Application: $totalTime")
+    println(s"Total time for GCForest Application: $totalTime, Sleep 20s")
+    Thread.sleep(20000)
     spark.stop()
   }
 }
