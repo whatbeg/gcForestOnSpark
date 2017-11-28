@@ -8,19 +8,20 @@ import scopt.OptionParser
 
 object Utils {
   case class TrainParams(
-              trainFile: String = "./data/uci_adult/adult_2000.data",
-              testFile: String = "./data/uci_adult/sample_adult.test",
+              trainFile: String = "./data/uci_adult/adult.data",
+              testFile: String = "./data/uci_adult/adult_1000.test",
               featuresFile: String = "./data/uci_adult/features",
               model: String = "./models/uci_adult",
               checkpointDir: String = "./checkpoint",
               classNum: Int = 2,
               multiScanWindow: Array[Int] = Array(),
-              rfNum: Int = 1,
+              rfNum: Int = 0,
               crfNum: Int = 1,
               scanForestTreeNum: Int = 2,
               cascadeForestTreeNum: Int = 500,
               scanMinInsPerNode: Int = 2,
               cascadeMinInsPerNode: Int = 2,
+              featureSubsetStrategy: String = "sqrt",
               maxBins: Int = 32,
               maxDepth: Int = 30,
               minInfoGain: Double = 1e-6,
@@ -86,6 +87,9 @@ object Utils {
     opt[Int]("casMinInsPerNode")
       .text("cascade Forest Minimum Instances per Node, default: 2")
       .action((x, c) => c.copy(cascadeMinInsPerNode = x))
+    opt[String]("featureSubsetStrategy")
+      .text("featureSubsetStrategy for RF and CRF")
+      .action((x, c) => c.copy(featureSubsetStrategy = x))
     opt[Int]('b', "maxBins")
       .text("random Forest max Bins to split continuous features, default: 32")
       .action((x, c) => c.copy(maxBins = x))

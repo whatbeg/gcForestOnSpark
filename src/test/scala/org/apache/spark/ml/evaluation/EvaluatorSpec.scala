@@ -4,7 +4,7 @@
 package org.apache.spark.ml.evaluation
 
 import org.apache.spark.ml.Utils.SparkUnitTest
-import org.apache.spark.ml.linalg.{DenseVector, Vector}
+import org.apache.spark.ml.linalg.DenseVector
 import gcForestEvaluator.evaluate
 
 class EvaluatorSpec extends SparkUnitTest {

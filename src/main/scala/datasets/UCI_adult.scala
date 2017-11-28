@@ -9,6 +9,8 @@ import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.sql.functions.{col, udf}
 import org.apache.spark.sql.types._
 
+import scala.util.Random
+
 
 class UCI_adult extends BaseDatasets {
   /**
@@ -54,8 +56,11 @@ class UCI_adult extends BaseDatasets {
       val data = splits.dropRight(1).zipWithIndex.map { case (feature, indx) =>
         f_parsers_array(indx).get_data(feature.trim)
       }.reduce((l, r) => l ++ r)
-      require(data.length == total_dims,
-        "Total dims %d not equal to data.length %d".format(total_dims, data.length))
+//      ++ Array.tabulate[Double](16) { _ =>
+//        Random.nextDouble()
+//      }
+//      require(data.length == total_dims+16,
+//        "Total dims %d not equal to data.length %d".format(total_dims, data.length))
       Row.fromSeq(Seq[Any](label, data, idx))
     }
 

@@ -151,15 +151,16 @@
                 </executions>
             </plugin>
         </plugins>
-        <resources>
-            <resource>
-                <targetPath>lib/</targetPath>
-                <directory>lib/</directory>
-                <includes>
-                    <include>${project.basedir}/lib/spark-mllib_2.11-2.2.0.jar</include>
-                </includes>
-            </resource>
-        </resources>
+        <!--<resources>-->
+            <!--<resource>-->
+                <!--<targetPath>lib/</targetPath>-->
+                <!--<directory>lib/</directory>-->
+                <!--<includes>-->
+                    <!--<include>spark-mllib_2.11-2.2.0.jar</include>-->
+                    <!--<include>breeze_2.11-0.13.1.jar</include>-->
+                <!--</includes>-->
+            <!--</resource>-->
+        <!--</resources>-->
     </build>
 
 </project>
