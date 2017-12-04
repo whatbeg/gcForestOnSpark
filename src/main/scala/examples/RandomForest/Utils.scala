@@ -12,22 +12,23 @@ object Utils {
   val dateFormat: SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS")
   def getNowTime = dateFormat.format(new Date())
   case class TrainParams(
-                          trainFile: String = "./data/uci_adult/adult_2000.data",
-                          testFile: String = "./data/uci_adult/sample_adult.test",
-                          featuresFile: String = "./data/uci_adult/features",
-                          model: String = "./models/uci_adult",
-                          classNum: Int = 2,
-                          ForestTreeNum: Int = 500,
-                          MinInsPerNode: Int = 2,
-                          maxBins: Int = 32,
-                          maxDepth: Int = 30,
-                          minInfoGain: Double = 1e-6,
-                          seed: Long = 123,
-                          count: Int = 3,
-                          cacheNodeId: Boolean = true,
-                          debugLevel: String = "ERROR",
-                          idebug: Boolean = false,
-                          parallelism: Int = 0)
+              trainFile: String = "./data/uci_adult/adult.data",
+              testFile: String = "./data/uci_adult/sample_adult.test",
+              featuresFile: String = "./data/uci_adult/features",
+              model: String = "./models/uci_adult",
+              classNum: Int = 2,
+              ForestTreeNum: Int = 500,
+              MinInsPerNode: Int = 2,
+              maxMemoryInMB: Int = 2048,
+              maxBins: Int = 32,
+              maxDepth: Int = 30,
+              minInfoGain: Double = 1e-6,
+              seed: Long = 123,
+              count: Int = 3,
+              cacheNodeId: Boolean = true,
+              debugLevel: String = "ERROR",
+              idebug: Boolean = false,
+              parallelism: Int = 0)
 
   val trainParser = new OptionParser[TrainParams]("Random Forest On Spark - UCI ADULT Example") {
     head("Train Random Forest for UCI ADULT")
@@ -52,6 +53,9 @@ object Utils {
     opt[Int]("MinInsPerNode")
       .text("Tree Minimum Instances per Node, default: 2")
       .action((x, c) => c.copy(MinInsPerNode = x))
+    opt[Int]('m', "maxMemoryInMB")
+      .text("max memory to histogram aggregates, default: 256")
+      .action((x, c) => c.copy(maxMemoryInMB = x))
     opt[Int]('b', "maxBins")
       .text("random Forest max Bins to split continuous features, default: 32")
       .action((x, c) => c.copy(maxBins = x))

@@ -5,7 +5,7 @@ package examples.RandomForest
 
 import datasets.UCI_adult
 import org.apache.spark.ml.classification.RandomForestCARTClassifier
-import org.apache.spark.ml.evaluation.gcForestEvaluator
+import org.apache.spark.ml.linalg.Vector
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.util.SizeEstimator
 import org.apache.spark.ml.util.engine.Engine
@@ -17,7 +17,7 @@ object RandomForestExample {
 
     val spark = SparkSession.builder()
       .appName(this.getClass.getSimpleName)
-//      .master("local[*]")
+      .master("local[*]")
       .getOrCreate()
 
     val parallelism = Engine.getParallelism(spark.sparkContext)
@@ -36,6 +36,7 @@ object RandomForestExample {
         if (param.parallelism > 0) param.parallelism else parallelism)
 
       println(s"Estimate trainset ${SizeEstimator.estimate(train)}, testset: ${SizeEstimator.estimate(test)}")
+      println(s"Train set shape (${train.count()}, ${train.head.getAs[Vector]("features").size-2})")
 
       Range(0, param.count).foreach { _ =>
         val stime = System.currentTimeMillis()
@@ -43,6 +44,7 @@ object RandomForestExample {
           .setMaxBins(param.maxBins)
           .setMaxDepth(param.maxDepth)
           .setMinInstancesPerNode(param.MinInsPerNode)
+          .setMaxMemoryInMB(param.maxMemoryInMB)
           .setMinInfoGain(param.minInfoGain)
           .setNumTrees(param.ForestTreeNum)
           .setSeed(param.seed)
@@ -51,7 +53,7 @@ object RandomForestExample {
         val model = randomForest.fit(train)
         println("Model Size estimates: %.1f M".format(SizeEstimator.estimate(model) / 1048576.0))
         println(s"Fit a random forest in Spark cost ${(System.currentTimeMillis() - stime) / 1000.0} s")
-        Thread.sleep(60 * 1000)
+//        Thread.sleep(20 * 1000)
       }
 
       println("Training End, Sleep 20 seconds")
