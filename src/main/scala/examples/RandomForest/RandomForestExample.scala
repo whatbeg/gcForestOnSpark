@@ -21,19 +21,25 @@ object RandomForestExample {
       .getOrCreate()
 
     val parallelism = Engine.getParallelism(spark.sparkContext)
-    println(s"Create Spark Context Succeed! Parallelism is $parallelism")
-    spark.conf.set("spark.default.parallelism", parallelism)
-    spark.conf.set("spark.locality.wait.node", 0)
+    println(s"Total Cores is $parallelism")
+//    spark.conf.set("spark.locality.wait.node", 0)
 
     trainParser.parse(args, TrainParams()).foreach(param => {
 
       spark.sparkContext.setLogLevel(param.debugLevel)
 //      spark.sparkContext.setCheckpointDir("./checkpoint")
-
+      // if param set to negative, use dataRDD
+      // else if param set to positive, use repartition(param.parallelism)
+      // else if param set to 0, use Engine.parallelism
+      def getParallelism: Int = param.parallelism match {
+        case p if p > 0 => param.parallelism
+        case n if n < 0 => -1
+        case _ => parallelism
+      }
       val train = new UCI_adult().load_data(spark, param.trainFile, param.featuresFile, 1,
-        if (param.parallelism > 0) param.parallelism else parallelism)
+        getParallelism)
       val test = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, 1,
-        if (param.parallelism > 0) param.parallelism else parallelism)
+        getParallelism)
 
       println(s"Estimate trainset ${SizeEstimator.estimate(train)}, testset: ${SizeEstimator.estimate(test)}")
       println(s"Train set shape (${train.count()}, ${train.head.getAs[Vector]("features").size-2})")

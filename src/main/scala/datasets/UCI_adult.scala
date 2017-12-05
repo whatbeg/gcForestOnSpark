@@ -9,8 +9,6 @@ import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.sql.functions.{col, udf}
 import org.apache.spark.sql.types._
 
-import scala.util.Random
-
 
 class UCI_adult extends BaseDatasets {
   /**
@@ -59,8 +57,8 @@ class UCI_adult extends BaseDatasets {
 //      ++ Array.tabulate[Double](16) { _ =>
 //        Random.nextDouble()
 //      }
-//      require(data.length == total_dims+16,
-//        "Total dims %d not equal to data.length %d".format(total_dims, data.length))
+      require(data.length == total_dims,
+        "Total dims %d not equal to data.length %d".format(total_dims, data.length))
       Row.fromSeq(Seq[Any](label, data, idx))
     }
 

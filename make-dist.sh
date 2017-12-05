@@ -50,4 +50,5 @@ else
   mkdir $DIST_DIR
 fi
 
-cp -r $BASEDIR/target/gcforest-*-with-dependencies.jar ./dist/
+#cp -r $BASEDIR/target/gcforest-*-with-dependencies.jar ./dist/
+cp $BASEDIR/target/gcforest-*.jar ./dist
