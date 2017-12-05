@@ -9,12 +9,6 @@ object JNAScala {
 
   Native.register("binToBestSplit")
 
-  @native def calculateImpurity(
-              impurity: Char,
-              allStats: Array[Double],
-              statSize: Int,
-              offset: Int): Double
-
   @native def binToBestSplit(ImpurityStats: Array[Double],
                              allStats: Array[Double],
                              featureOffset: Array[Int],

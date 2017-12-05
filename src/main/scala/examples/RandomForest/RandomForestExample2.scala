@@ -18,7 +18,7 @@ object RandomForestExample2 {
 
     val spark = SparkSession.builder()
       .appName(this.getClass.getSimpleName)
-      .master("local[*]")
+//      .master("local[*]")
       .getOrCreate()
 
     val parallelism = Engine.getParallelism(spark.sparkContext)
@@ -60,8 +60,8 @@ object RandomForestExample2 {
       println("Model Size estimates: %.1f M".format(SizeEstimator.estimate(model) / 1048576.0))
       println(s"Fit a random forest in Spark cost ${(System.currentTimeMillis() - stime) / 1000.0} s")
 
-      println("Training End, Sleep 20 seconds")
-      Thread.sleep(20 * 1000)
+//      println("Training End, Sleep 20 seconds")
+//      Thread.sleep(20 * 1000)
 
       val predictions = model.transform(test)
 
