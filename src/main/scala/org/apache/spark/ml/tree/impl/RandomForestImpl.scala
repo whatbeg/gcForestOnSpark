@@ -659,22 +659,23 @@ private[spark] object RandomForestImpl extends Logging {
                                      metadata: DecisionTreeMetadata): ImpurityStats = {
 
     val parentImpurityCalculator: ImpurityCalculator = if (stats == null) {
+      println(s"leftIC, rightIC = ${leftImpurityCalculator}, ${rightImpurityCalculator}")
       leftImpurityCalculator.copy.add(rightImpurityCalculator)
     } else {
       stats.impurityCalculator
     }
-
+    println(s"parentImpurityCalculator: ${parentImpurityCalculator}")
     val impurity: Double = if (stats == null) {
       parentImpurityCalculator.calculate()
     } else {
       stats.impurity
     }
-
+    println(s"impurity: $impurity")
     val leftCount = leftImpurityCalculator.count
     val rightCount = rightImpurityCalculator.count
 
     val totalCount = leftCount + rightCount
-
+    println(s"leftCount, rightCount = $leftCount, $rightCount")
     // If left child or right child doesn't satisfy minimum instances per node,
     // then this split is invalid, return invalid information gain stats.
     if ((leftCount < metadata.minInstancesPerNode) ||
@@ -689,7 +690,7 @@ private[spark] object RandomForestImpl extends Logging {
     val rightWeight = rightCount / totalCount.toDouble
 
     val gain = impurity - leftWeight * leftImpurity - rightWeight * rightImpurity
-
+    println(s"$impurity - $leftWeight * $leftImpurity - $rightWeight * $rightImpurity = $gain")
     // if information gain doesn't satisfy minimum information gain,
     // then this split is invalid, return invalid information gain stats.
     if (gain < metadata.minInfoGain) {
@@ -775,10 +776,18 @@ private[spark] object RandomForestImpl extends Logging {
         stats, 2, statSize)
       stats(2 + 3 * statSize) = if (gainAndImpurityStats.valid) 1.0 else -1.0
     }
+    printf(s"allStatSize, nodeFeatureOffset, statSize = ${dtStat.allStatsSize}" +
+      s" ${dtStat.featureOffsets(featureIndexIdx)} $statSize\n")
+    printf("ImpurityStats\n")
+    println(stats.mkString(","))
+    printf("allStats\n")
+    println(dtStat.allStats.mkString(","))
+    printf("featureOffset\n")
+    println(dtStat.featureOffsets.mkString(","))
     val p = JNAScala.binToBestSplit(stats, dtStat.getAllStats(), dtStat.featureOffsets,
       dtStat.featureOffsets.length, numSplits, impurityChar, statSize, featureIndexIdx,
       dtStat.metadata.minInstancesPerNode, dtStat.metadata.minInfoGain)
-    val result = p.getDoubleArray(0, 4 + statSize * 3 + dtStat.allStatsSize)
+    val result = p.getDoubleArray(0, 4 + statSize * 3)
     // [bestSplitIndex, gain, impurity, {}, {}, {}, {allStats}, valid]
     Native.free(Pointer.nativeValue(p))
     Pointer.nativeValue(p, 0)
@@ -795,9 +804,11 @@ private[spark] object RandomForestImpl extends Logging {
     } else {
       gainAndImpurityStats.impurityCalculator
     }
-    if (result(3 + statSize * 3 + dtStat.allStatsSize) < 0.0) {
+    if (result(3 + statSize * 3) < 0.0) {
+      println("invalid")
       return (0, ImpurityStats.getInvalidImpurityStats(parentImpurityCalculator))
     }
+    println(result.mkString(","))
     val leftImpurityCalculator =
       dtStat.impurityAggregator.getCalculator(
         result.view(3 + statSize, 3 + 2 * statSize).toArray, 0)
@@ -840,29 +851,35 @@ private[spark] object RandomForestImpl extends Logging {
       validFeatureSplits.map { case (featureIndexIdx, featureIndex) =>
         val numSplits = binAggregates.metadata.numSplits(featureIndex)
         if (binAggregates.metadata.isContinuous(featureIndex)) {
+          val log_binAgg = binAggregates
+          val log_gainAI = gainAndImpurityStats
           // Cumulative sum (scanLeft) of bin statistics.
           // Afterwards, binAggregates for a bin is the sum of aggregates for
           // that bin + all preceding bins.
-//          val nodeFeatureOffset = binAggregates.getFeatureOffset(featureIndexIdx)
-//          var splitIndex = 0
-//          while (splitIndex < numSplits) {
-//            binAggregates.mergeForFeature(nodeFeatureOffset, splitIndex + 1, splitIndex)
-//            splitIndex += 1
-//          }
+          val nodeFeatureOffset = binAggregates.getFeatureOffset(featureIndexIdx)
+          var splitIndex = 0
+          while (splitIndex < numSplits) {
+            binAggregates.mergeForFeature(nodeFeatureOffset, splitIndex + 1, splitIndex)
+            splitIndex += 1
+          }
           // Find best split.
           // scalastyle:off println
           val (bestFeatureSplitIndex, bestFeatureGainStats) =
-          getContinuousBestSplit(binAggregates, gainAndImpurityStats, numSplits, featureIndexIdx)
-//            Range(0, numSplits).map { splitIdx =>
-//              val leftChildStats =
-//                    binAggregates.getImpurityCalculator(nodeFeatureOffset, splitIdx)
-//              val rightChildStats =
-//                binAggregates.getImpurityCalculator(nodeFeatureOffset, numSplits)
-//              rightChildStats.subtract(leftChildStats)
-//              gainAndImpurityStats = calculateImpurityStats(gainAndImpurityStats,
-//                leftChildStats, rightChildStats, binAggregates.metadata)
-//              (splitIdx, gainAndImpurityStats)
-//            }.maxBy(_._2.gain)
+          // getContinuousBestSplit(binAggregates, gainAndImpurityStats, numSplits, featureIndexIdx)
+            Range(0, numSplits).map { splitIdx =>
+              val leftChildStats =
+                    binAggregates.getImpurityCalculator(nodeFeatureOffset, splitIdx)
+              val rightChildStats =
+                binAggregates.getImpurityCalculator(nodeFeatureOffset, numSplits)
+              rightChildStats.subtract(leftChildStats)
+              gainAndImpurityStats = calculateImpurityStats(gainAndImpurityStats,
+                leftChildStats, rightChildStats, binAggregates.metadata)
+              (splitIdx, gainAndImpurityStats)
+            }.maxBy(_._2.gain)
+          println(s"Scala Best: ${bestFeatureSplitIndex}, ${bestFeatureGainStats}")
+          val (jnaBestSplitIdx, jnaBestGainStats) =
+            getContinuousBestSplit(log_binAgg, log_gainAI, numSplits, featureIndexIdx)
+          println(s"JNA Best: ${jnaBestSplitIdx}, ${jnaBestGainStats}")
           (splits(featureIndex)(bestFeatureSplitIndex), bestFeatureGainStats)
         } else if (binAggregates.metadata.isUnordered(featureIndex)) {
           // Unordered categorical feature

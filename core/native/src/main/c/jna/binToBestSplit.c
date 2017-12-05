@@ -76,6 +76,7 @@ double* calcGainAndImpurityStats(char impurity, double ImpurityStats[], int stat
     memset(parentImpurityCalculator, 0, sizeof(parentImpurityCalculator));
     // memset(resImpurityStats, 0, sizeof(resImpurityStats));
     memset(rightImpurityCalculator, 0, sizeof(rightImpurityCalculator));
+    double *calcRES = (double *) malloc((3 + statSize * 3) * SZD);
     if (ImpurityStats[2 + statSize * 3] < 0) { // stats == null
         // printf("stas == null\n");
         // int i;
@@ -113,7 +114,8 @@ double* calcGainAndImpurityStats(char impurity, double ImpurityStats[], int stat
         if (ImpurityStats[2 + statSize * 3] > 0)
             memcpy(ImpurityStats + 2, parentImpurityCalculator, statSize * SZD);
         ImpurityStats[2 + statSize * 3] = -1;
-        return ImpurityStats;
+        memcpy(calcRES, ImpurityStats, (3 + statSize * 3) * SZD);
+        return calcRES;
     }
     double leftWeight = leftCount / totalCount;
     double rightWeight = rightCount / totalCount;
@@ -124,7 +126,8 @@ double* calcGainAndImpurityStats(char impurity, double ImpurityStats[], int stat
         if (ImpurityStats[2 + statSize * 3] > 0)
             memcpy(ImpurityStats + 2, parentImpurityCalculator, statSize * SZD);
         ImpurityStats[2 + statSize * 3] = -1;
-        return ImpurityStats;
+        memcpy(calcRES, ImpurityStats, (3 + statSize * 3) * SZD);
+        return calcRES;
     }
     ImpurityStats[0] = gain;
     ImpurityStats[1] = impurityResult;
@@ -132,7 +135,8 @@ double* calcGainAndImpurityStats(char impurity, double ImpurityStats[], int stat
     memcpy(ImpurityStats + 2 + statSize, allStats + leftOffset, statSize * SZD);
     memcpy(ImpurityStats + 2 + 2 * statSize, rightImpurityCalculator, statSize * SZD);
     ImpurityStats[2 + statSize * 3] = 1;
-    return ImpurityStats;
+    memcpy(calcRES, ImpurityStats, (3 + statSize * 3) * SZD);
+    return calcRES;
 }
 
 /**

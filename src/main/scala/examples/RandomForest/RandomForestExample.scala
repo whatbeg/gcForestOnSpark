@@ -17,7 +17,7 @@ object RandomForestExample {
 
     val spark = SparkSession.builder()
       .appName(this.getClass.getSimpleName)
-      .master("local[*]")
+      .master("local[1]")
       .getOrCreate()
 
     val parallelism = Engine.getParallelism(spark.sparkContext)

@@ -92,18 +92,17 @@ object JNAScala {
   }
 
   def testCalcGainAndImpurityStats(): Unit = {
-    val allStats = Array(1.0, 1, 12, 2, 14, 3)
-    val ImpurityStats = Array(0.0, 0, 0, 0, 0, 0, 0, 0, -1);  // stats = null
-    val p = calcGainAndImpurityStats('g', ImpurityStats, 2, 2, allStats, 6, 0,
-      0, 2, 1e-7)
+    val allStats = Array(1.0, 1, 13, 3, 14, 3)
+    val ImpurityStats = Array(0.0, 0, 0, 0, 0, 0, 0, 0, -1)  // stats = null
+    val p = calcGainAndImpurityStats('g', ImpurityStats, 2, 2, allStats, 6, 0, 0, 2, 1e-7)
     println(p.getDoubleArray(0, 3 + 2 * 3).mkString(","))
     Native.free(Pointer.nativeValue(p))
     Pointer.nativeValue(p, 0)
   }
 
   def testBinToBestSplit(): Unit = {
-    val allStats = Array(1.0, 1.0, 11.0, 1.0, 2.0, 1.0)
-    val ImpurityStats = Array(0.0, 0.0, 0, 0, 0, 0, 0, 0, -1);  // stats = null
+    val allStats = Array[Double](1.0, 1.0, 12.0, 2.0, 14.0, 3.0)
+    val ImpurityStats = Array[Double](0.0, 0.0, 0, 0, 0, 0, 0, 0, -1)  // stats = null
     val featureOffset = Array[Int](0, 6)
     val p = binToBestSplit(ImpurityStats, allStats, featureOffset, 2, 2, 'g', 2, 0, 2, 1e-8)
     println(p.getDoubleArray(0, 4 + 2 * 3).mkString(","))
@@ -111,11 +110,35 @@ object JNAScala {
     Pointer.nativeValue(p, 0)
   }
 
-//  def main(args: Array[String]): Unit = {
-//    testCalculateImpurity()
-//    testCalcGainAndImpurityStats()
-//    testBinToBestSplit()
-//  }
+  def testBinToBestSplit2(): Unit = {
+    val allStats = Array[Double](1519.0,492.0,1521.0,492.0,1410.0,479.0,111.0,13.0,1456.0,443.0,65.0,49.0,1520.0,
+      492.0,1.0,
+      0.0,1521.0,492.0,1479.0,489.0,42.0,3.0,1470.0,466.0,51.0,26.0,1327.0,360.0,194.0,132.0,1517.0,492.0,4.0,0.0,
+      1334.0,482.0,187.0,10.0,1455.0,382.0,6.0,0.0,8.0,0.0,1.0,0.0,1.0,0.0,0.0,0.0,1.0,0.0,1.0,0.0,2.0,0.0,5.0,0.0,
+      0.0,0.0,0.0,0.0,1.0,0.0,2.0,0.0,3.0,0.0,2.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0,0.0,0.0,9.0,6.0,0.0,5.0,
+      0.0,0.0,0.0,2.0,0.0,1.0,0.0,3.0,0.0,1.0,0.0,3.0,6.0,9.0,49.0,1.0,46.0)
+    val ImpurityStats = Array[Double](-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0)
+    val featureOffset = Array[Int](0,4,8,12,16,18,22,26,30,34,38,102)
+    val statSize = 2
+    val p = binToBestSplit(ImpurityStats, allStats, featureOffset, 12, 1, 'g', statSize, 0, 2, 1e-8)
+    println(p.getDoubleArray(0, 4 + statSize * 3).mkString(","))
+    Native.free(Pointer.nativeValue(p))
+    Pointer.nativeValue(p, 0)
+//    Scala Best: 0, gain = 1.1882028137660816E-4, impurity = 0.369348859832845,
+//                    left impurity = 0.3695972499339164, right impurity = 0.0
+//    allStatSize, nodeFeatureOffset, statSize = 102 0 2
+  }
+
+  def main(args: Array[String]): Unit = {
+    testCalculateImpurity()
+    println("testCalculateImpurity===============================================")
+    testCalcGainAndImpurityStats()
+    println("testCalcGainAndImpurityStats===============================================")
+    testBinToBestSplit()
+    println("testBinToBestSplit===============================================")
+    testBinToBestSplit2()
+    println("testBinToBestSplit2===============================================")
+  }
 }
 
 // scalastyle:on println
