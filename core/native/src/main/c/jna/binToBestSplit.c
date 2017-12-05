@@ -11,14 +11,12 @@
 #define SZD sizeof(double)
 
 double calculateImpurity(char impurity, double allStats[], int statSize, int offset);
-//double substractCalculate(char impurity, double allStats[], int statSize, int rightOffset, int leftOffset);
 double* calcGainAndImpurityStats(char impurity, double ImpurityStats[], int statSize, int numSplits, double allStats[], int allStatsSize,
                                  int nodeFeatureOffset, int leftOffset, int minInsPerNode, double minInfoGain);
 double* binToBestSplit(double ImpurityStats[], double allStats[], int featureOffset[], int nfeatureOffset,
                        int numSplits, char impurity, int statSize, int featureIndexIdx, int minInsPerNode, double minInfoGain);
 
 double calculateImpurity(char impurity, double allStats[], int statSize, int offset) {
-//    printf("%lf %lf\n", allStats[0], allStats[1]);
     if (impurity == 'g') { // gini
         double totalCount = 0;
         int i;
@@ -26,12 +24,9 @@ double calculateImpurity(char impurity, double allStats[], int statSize, int off
             totalCount += allStats[offset + i];
         }
         if (totalCount <= 1e-9) return 0;
-//        printf("Native total count: %.1lf\n", totalCount);
-//        printf("Native statSize: %d\n", statSize);
         double impurityResult = 1.0, freq;
         for (i = 0; i < statSize; i++) {
             freq = allStats[offset + i] / totalCount;
-//            printf("native freq %lf\n", freq);
             impurityResult -= freq * freq;
         }
         return impurityResult;
@@ -44,18 +39,6 @@ double calculateImpurity(char impurity, double allStats[], int statSize, int off
     }
     return -1.0;
 }
-
-//double substractCalculate(char impurity, double allStats[], int statSize, int rightOffset, int leftOffset) {
-//    double rightStats[statSize];
-//    memset(rightStats, 0, sizeof(rightStats));
-//    int i;
-//    for (i = 0; i < statSize; i++) {
-//        rightStats[i] = allStats[rightOffset + i] - allStats[leftOffset + i];
-//    }
-//    double result = calculateImpurity(impurity, rightStats, statSize, 0);
-//    // free(rightStats);
-//    return result;
-//}
 
 /**
  * ImpurityStats Representation:
@@ -74,26 +57,17 @@ double* calcGainAndImpurityStats(char impurity, double ImpurityStats[], int stat
     double rightImpurityCalculator[statSize];
     double impurityResult = -1.0;
     memset(parentImpurityCalculator, 0, sizeof(parentImpurityCalculator));
-    // memset(resImpurityStats, 0, sizeof(resImpurityStats));
     memset(rightImpurityCalculator, 0, sizeof(rightImpurityCalculator));
     if (ImpurityStats[2 + statSize * 3] < 0) { // stats == null
-        // printf("stas == null\n");
-        // int i;
-        // for (i = numSplits * statSize; i < numSplits * statSize + statSize; i++) printf("%lf\n", *(allStats + i));
         memcpy(parentImpurityCalculator, allStats + nodeFeatureOffset + numSplits * statSize, statSize * SZD); // allStats to be pointer or cannot use this interface
         impurityResult = calculateImpurity(impurity, parentImpurityCalculator, statSize, 0);
     }
     else {
-//        printf("hit!\n");
         memcpy(parentImpurityCalculator, ImpurityStats + 2, statSize * SZD);
         impurityResult = ImpurityStats[1];
     }
     double leftCount = 0, rightCount = 0;
     int i;
-    // debug
-    // for (i = 0; i < statSize; i++) printf("%lf\n", parentImpurityCalculator[i]);
-    // printf("impurity Result (parent): %lf\n", impurityResult);
-    //
     for (i = 0; i < statSize; i++) {
         leftCount += allStats[leftOffset + i];
     }
@@ -104,9 +78,7 @@ double* calcGainAndImpurityStats(char impurity, double ImpurityStats[], int stat
     }
     double leftStats = calculateImpurity(impurity, allStats, statSize, leftOffset);
     double rightStats = calculateImpurity(impurity, rightImpurityCalculator, statSize, 0);
-    // printf("JNA leftStats, rightStats = %lf %lf\n", leftStats, rightStats);
     double totalCount = leftCount + rightCount;
-    // printf("leftCount, rightCount, totalCount = %.1lf %.1lf %.1lf\n", leftCount, rightCount, totalCount);
     if (leftCount < minInsPerNode || rightCount < minInsPerNode) {  // Invalid ImpurityStats
         ImpurityStats[0] = DBL_MIN;
         ImpurityStats[1] = impurityResult;
@@ -149,16 +121,14 @@ double* calcGainAndImpurityStats(char impurity, double ImpurityStats[], int stat
  */
 double* binToBestSplit(double ImpurityStats[], double allStats[], int featureOffset[], int nfeatureOffset,
                        int numSplits, char impurity, int statSize, int featureIndexIdx, int minInsPerNode, double minInfoGain) {
-
+    int i, j;
     int allStatsSize = featureOffset[nfeatureOffset - 1];
 
     int nodeFeatureOffset = featureOffset[featureIndexIdx];
-
-//    printf("allStatSize, nodeFeatureOffset, statSize = %d %d %d\n", allStatsSize, nodeFeatureOffset, statSize);
     // Cumulative sum (scanLeft) of bin statistics.
     // Afterwards, binAggregates for a bin is the sum of aggregates for
     // that bin + all preceding bins.
-    int i, j;
+
     for (i = 0; i < numSplits; i++) {  // split Index
         int toOffset = nodeFeatureOffset + (i+1) * statSize;
         int fromOffset = nodeFeatureOffset + i * statSize;
@@ -169,33 +139,18 @@ double* binToBestSplit(double ImpurityStats[], double allStats[], int featureOff
     // get max gain ImpurityStats
     double bestImpurityStats[3 + statSize * 3];
     memset(bestImpurityStats, -1, sizeof(bestImpurityStats));
-//    printf("Initial bestImpurityStats\n");
-//    for (i = 0; i < 3 * statSize + 3; i++) printf("%lf ", bestImpurityStats[i]);
-//    puts("");
-//    printf("DBL_MAX DBL_MIN = %lf %lf\n", DBL_MAX, DBL_MIN);
-    double bestGain = -DBL_MAX + 1;
+    double bestGain = -DBL_MAX;
     double bestSplitIndex = 0;
     for (i = 0; i < numSplits; i++) {
         ImpurityStats = calcGainAndImpurityStats(impurity, ImpurityStats, statSize, numSplits, allStats, allStatsSize,
                                     nodeFeatureOffset, nodeFeatureOffset + i * statSize, minInsPerNode, minInfoGain);
         if (ImpurityStats == NULL) continue;
-//        printf("split = %d gainAndImpurityStats\n", i);
-//        for (j = 0; j < 3 * statSize + 3; j++) printf("%lf ", gainAndImpurityStats[j]);
-//        puts("");
-//        printf("ImpurityStats[0] and bestGain = %lf %lf\n", ImpurityStats[0], bestGain);
-        if (ImpurityStats[0] > bestGain) {
+        if (i == 0 || ImpurityStats[0] > bestGain) {  // is first or bigger than best
             memcpy(bestImpurityStats, ImpurityStats, (3 + statSize * 3) * SZD);
             bestGain = ImpurityStats[0];
             bestSplitIndex = i;
         }
-//        printf("split = %d bestImpurityStats\n", i);
-//        for (j = 0; j < 3 * statSize + 3; j++) printf("%lf ", bestImpurityStats[j]);
-//        puts("");
     }
-//    printf("Final bestImpurityStats\n");
-//    for (i = 0; i < 3 * statSize + 3; i++) printf("%lf ", bestImpurityStats[i]);
-//    puts("");
-    // free(featureOffset);
     double *retSplitAndStats = (double *) malloc((4 + statSize * 3) * SZD);
     retSplitAndStats[0] = bestSplitIndex;
     retSplitAndStats[1] = bestGain;
@@ -203,7 +158,6 @@ double* binToBestSplit(double ImpurityStats[], double allStats[], int featureOff
     for (i = 0; i < statSize; i++) retSplitAndStats[3 + i] = bestImpurityStats[2 + i];
     for (i = 0; i < statSize; i++) retSplitAndStats[3 + i + statSize] = bestImpurityStats[2 + i + statSize];
     for (i = 0; i < statSize; i++) retSplitAndStats[3 + i + 2 * statSize] = bestImpurityStats[2 + i + 2 * statSize];
-//    for (i = 0; i < allStatsSize; i++) retSplitAndStats[3 + i + 3 * statSize] = allStats[i];
     retSplitAndStats[3 + statSize * 3] = bestImpurityStats[2 + statSize * 3];
     return retSplitAndStats;
 }
