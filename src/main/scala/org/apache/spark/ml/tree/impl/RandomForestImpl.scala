@@ -659,23 +659,23 @@ private[spark] object RandomForestImpl extends Logging {
                                      metadata: DecisionTreeMetadata): ImpurityStats = {
 
     val parentImpurityCalculator: ImpurityCalculator = if (stats == null) {
-      println(s"leftIC, rightIC = ${leftImpurityCalculator}, ${rightImpurityCalculator}")
+//      println(s"leftIC, rightIC = ${leftImpurityCalculator}, ${rightImpurityCalculator}")
       leftImpurityCalculator.copy.add(rightImpurityCalculator)
     } else {
       stats.impurityCalculator
     }
-    println(s"parentImpurityCalculator: ${parentImpurityCalculator}")
+//    println(s"parentImpurityCalculator: ${parentImpurityCalculator}")
     val impurity: Double = if (stats == null) {
       parentImpurityCalculator.calculate()
     } else {
       stats.impurity
     }
-    println(s"impurity: $impurity")
+//    println(s"impurity: $impurity")
     val leftCount = leftImpurityCalculator.count
     val rightCount = rightImpurityCalculator.count
 
     val totalCount = leftCount + rightCount
-    println(s"leftCount, rightCount = $leftCount, $rightCount")
+//    println(s"leftCount, rightCount = $leftCount, $rightCount")
     // If left child or right child doesn't satisfy minimum instances per node,
     // then this split is invalid, return invalid information gain stats.
     if ((leftCount < metadata.minInstancesPerNode) ||
@@ -690,7 +690,7 @@ private[spark] object RandomForestImpl extends Logging {
     val rightWeight = rightCount / totalCount.toDouble
 
     val gain = impurity - leftWeight * leftImpurity - rightWeight * rightImpurity
-    println(s"$impurity - $leftWeight * $leftImpurity - $rightWeight * $rightImpurity = $gain")
+//    println(s"$impurity - $leftWeight * $leftImpurity - $rightWeight * $rightImpurity = $gain")
     // if information gain doesn't satisfy minimum information gain,
     // then this split is invalid, return invalid information gain stats.
     if (gain < metadata.minInfoGain) {
@@ -698,61 +698,6 @@ private[spark] object RandomForestImpl extends Logging {
     }
 
     new ImpurityStats(gain, impurity, parentImpurityCalculator,
-      leftImpurityCalculator, rightImpurityCalculator)
-  }
-
-  def getGainAndImpurityStats(dtStat: TreeStatsAggregator,
-                              gainAndImpurityStats: ImpurityStats,
-                              numSplits: Int,
-                              splitIdx: Int,
-                              nodeFeatureOffset: Int): ImpurityStats = {
-    val impurityChar = dtStat.metadata.impurity match {
-      case Gini => 'g'
-      case Variance => 'v'
-      case Entropy => 'e'
-      case _ => 'n'
-    }
-    val statSize = dtStat.metadata.numClasses
-    val stats = Array.fill[Double](3 + 3 * statSize)(-1d)
-    if (gainAndImpurityStats != null) {
-      stats(0) = gainAndImpurityStats.gain
-      stats(1) = gainAndImpurityStats.impurity
-      System.arraycopy(gainAndImpurityStats.impurityCalculator.stats, 0,
-        stats, 2, statSize)
-      stats(2 + 3 * statSize) = if (gainAndImpurityStats.valid) 1.0 else -1.0
-    }
-    val allStats = dtStat.getAllStats()
-    val p = JNAScala.calcGainAndImpurityStats(impurityChar, stats,
-      statSize, numSplits, allStats,
-      allStats.length, nodeFeatureOffset, nodeFeatureOffset + splitIdx * statSize,
-      dtStat.metadata.minInstancesPerNode, dtStat.metadata.minInfoGain)
-    val result = p.getDoubleArray(0, 3 + statSize * 3)
-    // [gain, impurity, {}, {}, {}, valid]
-    Native.free(Pointer.nativeValue(p))
-    Pointer.nativeValue(p, 0)
-    // scalastyle:off println
-    // println(result.mkString(","))
-    // scalastyle:on println
-    var i = 0
-    while (i < statSize) {
-      dtStat.parentStats(i) = result(2 + i)
-      i += 1
-    }
-    val parentImpurityCalculator: ImpurityCalculator = if (gainAndImpurityStats == null) {
-      dtStat.getParentImpurityCalculator()
-    } else {
-      gainAndImpurityStats.impurityCalculator
-    }
-    if (result(2 + statSize * 3) < 0.0) {
-      return ImpurityStats.getInvalidImpurityStats(parentImpurityCalculator)
-    }
-    val leftImpurityCalculator =
-      dtStat.impurityAggregator.getCalculator(
-        result.view(2 + statSize, 2 + 2 * statSize).toArray, 0)
-    val rightImpurityCalculator =
-      dtStat.impurityAggregator.getCalculator(
-        result.view(2 + 2 * statSize, 2 + 3 * statSize).toArray, 0)
-    new ImpurityStats(result(0), result(1), parentImpurityCalculator,
       leftImpurityCalculator, rightImpurityCalculator)
   }
 
@@ -776,14 +721,14 @@ private[spark] object RandomForestImpl extends Logging {
         stats, 2, statSize)
       stats(2 + 3 * statSize) = if (gainAndImpurityStats.valid) 1.0 else -1.0
     }
-    printf(s"allStatSize, nodeFeatureOffset, statSize = ${dtStat.allStatsSize}" +
-      s" ${dtStat.featureOffsets(featureIndexIdx)} $statSize\n")
-    printf("ImpurityStats\n")
-    println(stats.mkString(","))
-    printf("allStats\n")
-    println(dtStat.allStats.mkString(","))
-    printf("featureOffset\n")
-    println(dtStat.featureOffsets.mkString(","))
+//    printf(s"allStatSize, nodeFeatureOffset, statSize = ${dtStat.allStatsSize}" +
+//      s" ${dtStat.featureOffsets(featureIndexIdx)} $statSize\n")
+//    printf("ImpurityStats\n")
+//    println(stats.mkString(","))
+//    printf("allStats\n")
+//    println(dtStat.allStats.mkString(","))
+//    printf("featureOffset\n")
+//    println(dtStat.featureOffsets.mkString(","))
     val p = JNAScala.binToBestSplit(stats, dtStat.getAllStats(), dtStat.featureOffsets,
       dtStat.featureOffsets.length, numSplits, impurityChar, statSize, featureIndexIdx,
       dtStat.metadata.minInstancesPerNode, dtStat.metadata.minInfoGain)
@@ -805,10 +750,9 @@ private[spark] object RandomForestImpl extends Logging {
       gainAndImpurityStats.impurityCalculator
     }
     if (result(3 + statSize * 3) < 0.0) {
-      println("invalid")
       return (0, ImpurityStats.getInvalidImpurityStats(parentImpurityCalculator))
     }
-    println(result.mkString(","))
+//    println(result.mkString(","))
     val leftImpurityCalculator =
       dtStat.impurityAggregator.getCalculator(
         result.view(3 + statSize, 3 + 2 * statSize).toArray, 0)
@@ -876,10 +820,12 @@ private[spark] object RandomForestImpl extends Logging {
                 leftChildStats, rightChildStats, binAggregates.metadata)
               (splitIdx, gainAndImpurityStats)
             }.maxBy(_._2.gain)
-          println(s"Scala Best: ${bestFeatureSplitIndex}, ${bestFeatureGainStats}")
+          // println(s"Scala Best: ${bestFeatureSplitIndex}, ${bestFeatureGainStats}")
           val (jnaBestSplitIdx, jnaBestGainStats) =
             getContinuousBestSplit(log_binAgg, log_gainAI, numSplits, featureIndexIdx)
-          println(s"JNA Best: ${jnaBestSplitIdx}, ${jnaBestGainStats}")
+          // println(s"JNA Best: ${jnaBestSplitIdx}, ${jnaBestGainStats}")
+          // assert(jnaBestGainStats == bestFeatureGainStats)
+          assert(bestFeatureSplitIndex == jnaBestSplitIdx)
           (splits(featureIndex)(bestFeatureSplitIndex), bestFeatureGainStats)
         } else if (binAggregates.metadata.isUnordered(featureIndex)) {
           // Unordered categorical feature

@@ -45,18 +45,6 @@ double calculateImpurity(char impurity, double allStats[], int statSize, int off
     return -1.0;
 }
 
-//double substractCalculate(char impurity, double allStats[], int statSize, int rightOffset, int leftOffset) {
-//    double rightStats[statSize];
-//    memset(rightStats, 0, sizeof(rightStats));
-//    int i;
-//    for (i = 0; i < statSize; i++) {
-//        rightStats[i] = allStats[rightOffset + i] - allStats[leftOffset + i];
-//    }
-//    double result = calculateImpurity(impurity, rightStats, statSize, 0);
-//    // free(rightStats);
-//    return result;
-//}
-
 /**
  * ImpurityStats Representation:
  * gain: Double
