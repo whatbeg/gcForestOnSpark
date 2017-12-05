@@ -8,7 +8,7 @@ import scopt.OptionParser
 
 object Utils {
   case class TrainParams(
-              trainFile: String = "./data/uci_adult/adult_2000.data",
+              trainFile: String = "./data/uci_adult/adult.data",
               testFile: String = "./data/uci_adult/adult_1000.test",
               featuresFile: String = "./data/uci_adult/features",
               model: String = "./models/uci_adult",
@@ -34,6 +34,7 @@ object Utils {
               dataSize: Array[Int] = Array(113),
               seed: Long = 123,
               cacheNodeId: Boolean = true,
+              parallelism: Int = 8,
               debugLevel: String = "ERROR",
               winCol: String = "windows",
               scanCol: String = "scan_id",
@@ -127,6 +128,9 @@ object Utils {
     opt[String]("cacheNodeId")
       .text("cache node id or not, default: true")
       .action((x, c) => c.copy(cacheNodeId = x == "y"))
+    opt[Int]('p', "parallelism")
+      .text("parallelism you want to set, default: 0")
+      .action((x, c) => c.copy(parallelism = x))
     opt[String]("debugLevel")
       .text("debug level you want to set, default: ERROR")
       .action((x, c) => c.copy(debugLevel = x))
