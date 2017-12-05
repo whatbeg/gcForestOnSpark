@@ -149,23 +149,33 @@ double* calcGainAndImpurityStats(char impurity, double ImpurityStats[], int stat
  */
 double* binToBestSplit(double ImpurityStats[], double allStats[], int featureOffset[], int nfeatureOffset,
                        int numSplits, char impurity, int statSize, int featureIndexIdx, int minInsPerNode, double minInfoGain) {
-
+    int i, j;
     int allStatsSize = featureOffset[nfeatureOffset - 1];
 
     int nodeFeatureOffset = featureOffset[featureIndexIdx];
-
+    // accepted params
 //    printf("allStatSize, nodeFeatureOffset, statSize = %d %d %d\n", allStatsSize, nodeFeatureOffset, statSize);
+//    printf("ImpurityStats\n");
+//    for (j = 0; j < 3 * statSize + 3; j++) printf("%lf ", ImpurityStats[j]);
+//    puts("");
+//    printf("allStats\n");
+//    for (j = 0; j < 3 * statSize + 3; j++) printf("%lf ", allStats[j]);
+//    puts("");
+//    printf("featureOffset\n");
+//    for (j = 0; j < nfeatureOffset; j++) printf("%d ", featureOffset[j]);
+//    puts("");
+    // accepted params
     // Cumulative sum (scanLeft) of bin statistics.
     // Afterwards, binAggregates for a bin is the sum of aggregates for
     // that bin + all preceding bins.
-    int i, j;
-    for (i = 0; i < numSplits; i++) {  // split Index
-        int toOffset = nodeFeatureOffset + (i+1) * statSize;
-        int fromOffset = nodeFeatureOffset + i * statSize;
-        for (j = 0; j < statSize; j++) {
-            allStats[toOffset + j] += allStats[fromOffset + j];
-        }
-    }
+
+//    for (i = 0; i < numSplits; i++) {  // split Index
+//        int toOffset = nodeFeatureOffset + (i+1) * statSize;
+//        int fromOffset = nodeFeatureOffset + i * statSize;
+//        for (j = 0; j < statSize; j++) {
+//            allStats[toOffset + j] += allStats[fromOffset + j];
+//        }
+//    }
     // get max gain ImpurityStats
     double bestImpurityStats[3 + statSize * 3];
     memset(bestImpurityStats, -1, sizeof(bestImpurityStats));
@@ -173,17 +183,17 @@ double* binToBestSplit(double ImpurityStats[], double allStats[], int featureOff
 //    for (i = 0; i < 3 * statSize + 3; i++) printf("%lf ", bestImpurityStats[i]);
 //    puts("");
 //    printf("DBL_MAX DBL_MIN = %lf %lf\n", DBL_MAX, DBL_MIN);
-    double bestGain = -DBL_MAX + 1;
+    double bestGain = -DBL_MAX;
     double bestSplitIndex = 0;
     for (i = 0; i < numSplits; i++) {
         ImpurityStats = calcGainAndImpurityStats(impurity, ImpurityStats, statSize, numSplits, allStats, allStatsSize,
                                     nodeFeatureOffset, nodeFeatureOffset + i * statSize, minInsPerNode, minInfoGain);
         if (ImpurityStats == NULL) continue;
 //        printf("split = %d gainAndImpurityStats\n", i);
-//        for (j = 0; j < 3 * statSize + 3; j++) printf("%lf ", gainAndImpurityStats[j]);
+//        for (j = 0; j < 3 * statSize + 3; j++) printf("%lf ", ImpurityStats[j]);
 //        puts("");
 //        printf("ImpurityStats[0] and bestGain = %lf %lf\n", ImpurityStats[0], bestGain);
-        if (ImpurityStats[0] > bestGain) {
+        if (i == 0 || ImpurityStats[0] > bestGain) {  // is first or bigger than best
             memcpy(bestImpurityStats, ImpurityStats, (3 + statSize * 3) * SZD);
             bestGain = ImpurityStats[0];
             bestSplitIndex = i;
