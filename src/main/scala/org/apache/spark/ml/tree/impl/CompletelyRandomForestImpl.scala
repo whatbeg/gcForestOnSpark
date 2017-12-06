@@ -72,7 +72,9 @@ private [spark] object CompletelyRandomForestImpl extends Logging {
     // Cache input RDD for speedup during multiple passes.
     val treeInput = TreePoint.convertToTreeRDD(retaggedInput, splits, metadata)
 
-    val withReplacement = numTrees > 1
+    // Completely Random Forest does not bootstrap, it uses the whole learning sample
+    // (rather than a bootstrap replica) to grow the trees.
+    val withReplacement = false
 
     val baggedInput = BaggedPoint
       .convertToBaggedRDD(treeInput, strategy.subsamplingRate, numTrees, withReplacement, seed)
