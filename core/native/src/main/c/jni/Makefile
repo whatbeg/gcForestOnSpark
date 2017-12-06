@@ -1,5 +1,5 @@
 GXX := gcc
-FILES = core_JNITest
+FILES = core_JNITest jnibinToBestSplit
 dir = ../../../../../../src/main/resources/linux-x86-64
 
 all:

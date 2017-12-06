@@ -15,6 +15,22 @@ extern "C" {
 JNIEXPORT jdouble JNICALL Java_core_JNITest_sum
   (JNIEnv *, jobject, jdoubleArray, jint);
 
+/*
+ * Class:     core_JNITest
+ * Method:    calc
+ * Signature: ([DI)D
+ */
+JNIEXPORT jdouble JNICALL Java_core_JNITest_calc
+  (JNIEnv *, jobject, jdoubleArray, jint);
+
+/*
+ * Class:     core_JNITest
+ * Method:    calcIntensive
+ * Signature: (D)D
+ */
+JNIEXPORT jdouble JNICALL Java_core_JNITest_calcIntensive
+  (JNIEnv *, jobject, jdouble, jint);
+
 #ifdef __cplusplus
 }
 #endif

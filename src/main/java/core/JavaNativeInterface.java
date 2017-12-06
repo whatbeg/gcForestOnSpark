@@ -5,7 +5,7 @@ package core;
 
 public class JavaNativeInterface {
     static {
-        System.loadLibrary("binToBestSplit");
+        System.loadLibrary("jnibinToBestSplit");
     }
 
     public native double[] binToBestSplit(double[] ImpurityStats,
