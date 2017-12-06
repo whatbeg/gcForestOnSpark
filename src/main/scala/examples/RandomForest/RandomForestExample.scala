@@ -17,7 +17,7 @@ object RandomForestExample {
 
     val spark = SparkSession.builder()
       .appName(this.getClass.getSimpleName)
-//      .master("local[*]")
+      .master("local[*]")
       .getOrCreate()
 
     val parallelism = Engine.getParallelism(spark.sparkContext)
@@ -50,6 +50,7 @@ object RandomForestExample {
           .setMaxBins(param.maxBins)
           .setMaxDepth(param.maxDepth)
           .setMinInstancesPerNode(param.MinInsPerNode)
+          .setFeatureSubsetStrategy(param.featureSubsetStrategy)
           .setMaxMemoryInMB(param.maxMemoryInMB)
           .setMinInfoGain(param.minInfoGain)
           .setNumTrees(param.ForestTreeNum)

@@ -16,7 +16,7 @@ object CompletelyRandomForestExample {
 
     val spark = SparkSession.builder()
       .appName(this.getClass.getSimpleName)
-//      .master("local[*]")
+      .master("local[*]")
       .getOrCreate()
 
     val parallelism = Engine.getParallelism(spark.sparkContext)
@@ -37,6 +37,7 @@ object CompletelyRandomForestExample {
         .setMaxBins(param.maxBins)
         .setMaxDepth(param.maxDepth)
         .setMinInstancesPerNode(param.MinInsPerNode)
+        .setFeatureSubsetStrategy(param.featureSubsetStrategy)
         .setNumTrees(param.ForestTreeNum)
         .setSeed(param.seed)
         .setCacheNodeIds(param.cacheNodeId)

@@ -12,10 +12,11 @@ object Utils {
   val dateFormat: SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS")
   def getNowTime = dateFormat.format(new Date())
   case class TrainParams(
-              trainFile: String = "./data/uci_adult/adult_2000.data",
-              testFile: String = "./data/uci_adult/sample_adult.test",
+              trainFile: String = "./data/uci_adult/adult.data",
+              testFile: String = "./data/uci_adult/adult.test",
               featuresFile: String = "./data/uci_adult/features",
               model: String = "./models/uci_adult",
+              featureSubsetStrategy: String = "sqrt",
               classNum: Int = 2,
               ForestTreeNum: Int = 500,
               MinInsPerNode: Int = 2,
@@ -44,6 +45,9 @@ object Utils {
     opt[String]("model")
       .text("where you put your trained model, default: ./models/uci_adult")
       .action((x, c) => c.copy(model = x))
+    opt[String]("featureSubsetStrategy")
+      .text("featureSubsetStrategy for RF and CRF")
+      .action((x, c) => c.copy(featureSubsetStrategy = x))
     opt[Int]("classNum")
       .text("number of Classes, default: 2")
       .action((x, c) => c.copy(classNum = x))
