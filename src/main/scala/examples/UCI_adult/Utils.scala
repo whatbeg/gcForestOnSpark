@@ -15,13 +15,14 @@ object Utils {
               checkpointDir: String = "./checkpoint",
               classNum: Int = 2,
               multiScanWindow: Array[Int] = Array(),
-              rfNum: Int = 0,
+              rfNum: Int = 1,
               crfNum: Int = 1,
               scanForestTreeNum: Int = 2,
               cascadeForestTreeNum: Int = 500,
               scanMinInsPerNode: Int = 2,
               cascadeMinInsPerNode: Int = 2,
               featureSubsetStrategy: String = "sqrt",
+              crf_featureSubsetStrategy: String = "log2",
               maxBins: Int = 32,
               maxDepth: Int = 30,
               minInfoGain: Double = 1e-6,
@@ -89,8 +90,11 @@ object Utils {
       .text("cascade Forest Minimum Instances per Node, default: 2")
       .action((x, c) => c.copy(cascadeMinInsPerNode = x))
     opt[String]("featureSubsetStrategy")
-      .text("featureSubsetStrategy for RF and CRF")
+      .text("featureSubsetStrategy for RF")
       .action((x, c) => c.copy(featureSubsetStrategy = x))
+    opt[String]("crf_featureSubsetStrategy")
+      .text("featureSubsetStrategy CRF")
+      .action((x, c) => c.copy(crf_featureSubsetStrategy = x))
     opt[Int]('b', "maxBins")
       .text("random Forest max Bins to split continuous features, default: 32")
       .action((x, c) => c.copy(maxBins = x))

@@ -62,7 +62,14 @@ private[ml] trait GCForestParams extends HasSeed {
     this, "featureSubsetStrategy", "")
   setDefault(featureSubsetStrategy -> "sqrt")
 
+  final val crf_featureSubsetStrategy: Param[String] = new Param[String](
+    this, "crf_featureSubsetStrategy", ""
+  )
+  setDefault(crf_featureSubsetStrategy -> "log2")
+
   def setFeatureSubsetStrategy(value: String): this.type = set(featureSubsetStrategy, value)
+
+  def setCrf_featureSubsetStrategy(value: String): this.type = set(crf_featureSubsetStrategy, value)
 
   final val MaxBins: IntParam =
     new IntParam(this, "randomForestMaxBins", "", (value: Int) => value > 0)

@@ -75,7 +75,7 @@ class GCForestClassifier(override val uid: String)
     GCForestStrategy($(classNum), $(modelPath), $(multiScanWindow),
       $(dataSize), $(rfNum), $(crfNum),
       $(scanForestTreeNum), $(cascadeForestTreeNum), $(scanMinInsPerNode),
-      $(cascadeMinInsPerNode), $(featureSubsetStrategy), $(MaxBins),
+      $(cascadeMinInsPerNode), $(featureSubsetStrategy), $(crf_featureSubsetStrategy), $(MaxBins),
       $(MaxDepth), $(minInfoGain), $(MaxIteration), $(maxMemoryInMB),
       $(numFolds), $(earlyStoppingRounds),
       $(earlyStopByTest), $(dataStyle), $(seed), $(cacheNodeId),

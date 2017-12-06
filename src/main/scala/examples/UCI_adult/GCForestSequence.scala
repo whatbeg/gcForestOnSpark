@@ -17,7 +17,7 @@ object GCForestSequence {
     val stime = System.currentTimeMillis()
     val spark = SparkSession.builder()
       .appName(this.getClass.getSimpleName)
-//      .master("local[*]")
+      .master("local[*]")
       .getOrCreate()
 
     val parallelism = Engine.getParallelism(spark.sparkContext)
@@ -62,6 +62,7 @@ object GCForestSequence {
         .setScanForestMinInstancesPerNode(param.scanMinInsPerNode)
         .setCascadeForestMinInstancesPerNode(param.cascadeMinInsPerNode)
         .setFeatureSubsetStrategy(param.featureSubsetStrategy)
+        .setCrf_featureSubsetStrategy(param.crf_featureSubsetStrategy)
         .setEarlyStoppingRounds(param.earlyStoppingRounds)
         .setIDebug(param.idebug)
 

@@ -198,8 +198,8 @@ private[spark] object GCForestImpl extends Logging {
                       isScan: Boolean,
                       num: Int): RandomForestCARTClassifier = {
     val rf = rfType match {
-      case "rfc" => new RandomForestCARTClassifier()
-      case "crfc" => new CompletelyRandomForestClassifier()
+      case "rfc" => new RandomForestCARTClassifier().setFeatureSubsetStrategy(strategy.featureSubsetStrategy)
+      case "crfc" => new CompletelyRandomForestClassifier().setFeatureSubsetStrategy(strategy.crf_featureSubsetStrategy)
     }
 
     rf.setNumTrees(if (isScan) strategy.scanForestTreeNum else strategy.cascadeForestTreeNum)
@@ -208,7 +208,7 @@ private[spark] object GCForestImpl extends Logging {
       .setMinInstancesPerNode(if (isScan) strategy.scanMinInsPerNode
         else strategy.cascadeMinInsPerNode)
       .setMinInfoGain(strategy.minInfoGain)
-      .setFeatureSubsetStrategy(strategy.featureSubsetStrategy)
+      // .setFeatureSubsetStrategy(strategy.featureSubsetStrategy)
       .setCacheNodeIds(strategy.cacheNodeId)
       .setMaxMemoryInMB(strategy.maxMemoryInMB)
       .setSeed(System.currentTimeMillis() + num*123L + rfType.hashCode % num)
@@ -683,7 +683,8 @@ private[spark] object GCForestImpl extends Logging {
     while (!reachMaxLayer) {
 //      println("Sleep 30 seconds ......")
 //      Thread.sleep(30 * 1000)
-      println(s"sc.defaultParallelism = ${sc.defaultParallelism}")
+      if (strategy.idebug)
+        println(s"sc.defaultParallelism = ${sc.defaultParallelism}")
 
       val stime = System.currentTimeMillis()
 

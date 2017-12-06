@@ -63,7 +63,7 @@ class GCBoostedTreeClassifier(override val uid: String)
     GCForestStrategy($(classNum), $(modelPath), $(multiScanWindow),
       $(dataSize), $(rfNum), $(crfNum),
       $(scanForestTreeNum), $(cascadeForestTreeNum), $(scanMinInsPerNode), $(cascadeMinInsPerNode),
-      $(featureSubsetStrategy), $(MaxBins), $(MaxDepth), $(minInfoGain), $(MaxIteration),
+      $(featureSubsetStrategy), $(crf_featureSubsetStrategy), $(MaxBins), $(MaxDepth), $(minInfoGain), $(MaxIteration),
       $(maxMemoryInMB), $(numFolds), $(earlyStoppingRounds), $(earlyStopByTest), $(dataStyle),
       $(seed), $(cacheNodeId), $(windowCol), $(scanCol),
       $(forestIdCol), $(idebug))
