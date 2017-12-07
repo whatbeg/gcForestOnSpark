@@ -99,23 +99,23 @@ object JNATest {
 
   def testCalcIntensive(): Unit = {
     val JNI = new JNITest()
-    Range(1, 2000000, 20000).foreach { _ =>
+    Range(1000000, 40000000, 1000000).foreach { i =>
       val start_time = System.nanoTime()
-      calcIntensive(1.0, 2000000)
+      calcIntensive(1.0, i)
       val ctime = System.nanoTime() - start_time
 
       val stime = System.nanoTime()
-      calcIntensiveScala(1.0, 2000000)
+      calcIntensiveScala(1.0, i)
       val etime = System.nanoTime() - stime
 
       val sstime = System.nanoTime()
-      JNI.calcIntensive(1.0, 2000000)
+      JNI.calcIntensive(1.0, i)
       val eetime = System.nanoTime() - sstime
 
       val jstime = System.nanoTime()
-      JNI.calcIntensiveJava(1.0, 2000000)
+      JNI.calcIntensiveJava(1.0, i)
       val jttime = System.nanoTime() - jstime
-      println(s"${ctime / 1e6}  ${etime / 1e6}  ${eetime / 1e6} ${jttime / 1e6}")
+      println(s"${i / 1000000} ${ctime / 1e6}  ${etime / 1e6}  ${eetime / 1e6} ${jttime / 1e6}")
     }
   }
 
