@@ -222,12 +222,12 @@ private[ml] abstract class LSHModel[T <: LSHModel[T]]
   }
 
   /**
-   * Join two datasets to approximately find all pairs of rows whose distance are smaller than
+   * Join two org.apache.spark.ml.datasets to approximately find all pairs of rows whose distance are smaller than
    * the threshold. If the [[outputCol]] is missing, the method will transform the data; if the
    * [[outputCol]] exists, it will use the [[outputCol]]. This allows caching of the transformed
    * data when necessary.
    *
-   * @param datasetA One of the datasets to join.
+   * @param datasetA One of the org.apache.spark.ml.datasets to join.
    * @param datasetB Another dataset to join.
    * @param threshold The threshold for the distance of row pairs.
    * @param distCol Output column for storing the distance between each pair of rows.
@@ -265,7 +265,7 @@ private[ml] abstract class LSHModel[T <: LSHModel[T]]
       distUDF(col(s"$leftColName.${$(inputCol)}"), col(s"$rightColName.${$(inputCol)}")).as(distCol)
     )
 
-    // Filter the joined datasets where the distance are smaller than the threshold.
+    // Filter the joined org.apache.spark.ml.datasets where the distance are smaller than the threshold.
     joinedDatasetWithDist.filter(col(distCol) < threshold)
   }
 
@@ -283,7 +283,7 @@ private[ml] abstract class LSHModel[T <: LSHModel[T]]
 /**
  * Locality Sensitive Hashing for different metrics space. Support basic transformation with a new
  * hash column, approximate nearest neighbor search with a dataset and a key, and approximate
- * similarity join of two datasets.
+ * similarity join of two org.apache.spark.ml.datasets.
  *
  * This LSH class implements OR-amplification: more than 1 hash functions can be chosen, and each
  * input vector are hashed by all hash functions. Two input vectors are defined to be in the same

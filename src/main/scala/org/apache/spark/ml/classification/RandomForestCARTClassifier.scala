@@ -6,11 +6,11 @@ package org.apache.spark.ml.classification
 
 import org.json4s.{DefaultFormats, JObject}
 import org.json4s.JsonDSL._
-
 import org.apache.spark.annotation.Since
 import org.apache.spark.ml.feature.LabeledPoint
-import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector, Vectors}
+import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector, VectorUDT, Vectors}
 import org.apache.spark.ml.param.ParamMap
+import org.apache.spark.ml.param.shared.HasWeightCol
 import org.apache.spark.ml.tree._
 import org.apache.spark.ml.tree.impl.RandomForestImpl
 import org.apache.spark.ml.util._
@@ -20,6 +20,7 @@ import org.apache.spark.mllib.tree.model.{RandomForestModel => OldRandomForestMo
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Dataset}
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.DoubleType
 
 
 class RandomForestCARTClassifier(override val uid: String)
@@ -94,9 +95,36 @@ class RandomForestCARTClassifier(override val uid: String)
   override def setFeatureSubsetStrategy(value: String): this.type =
   set(featureSubsetStrategy, value)
 
+  override def fit(dataset: Dataset[_]): RandomForestCARTModel = {
+    // This handles a few items such as schema validation.
+    // Developers only need to implement train().
+    transformSchema(dataset.schema, logging = true)
+
+    // Cast LabelCol to DoubleType, featuresCol to VectorUDT and keep the metadata.
+    val labelMeta = dataset.schema($(labelCol)).metadata
+    val featuresMeta = dataset.schema($(featuresCol)).metadata
+    val labelCasted = dataset.withColumn($(labelCol), col($(labelCol)).cast(DoubleType), labelMeta)
+      .withColumn($(featuresCol), col($(featuresCol)).cast(new VectorUDT), featuresMeta)
+
+    // Cast WeightCol to DoubleType and keep the metadata.
+    val casted = this match {
+      case p: HasWeightCol =>
+        if (isDefined(p.weightCol) && $(p.weightCol).nonEmpty) {
+          val weightMeta = dataset.schema($(p.weightCol)).metadata
+          labelCasted.withColumn($(p.weightCol), col($(p.weightCol)).cast(DoubleType), weightMeta)
+        } else {
+          labelCasted
+        }
+      case _ => labelCasted
+    }
+
+    copyValues(train(casted).setParent(this))
+  }
+
   override protected def train(dataset: Dataset[_]): RandomForestCARTModel = {
     val categoricalFeatures: Map[Int, Int] =
       MetadataUtils.getCategoricalFeatures(dataset.schema($(featuresCol)))
+    println(s"categoricalFeatures: ${categoricalFeatures}")
     val numClasses: Int = getNumClasses(dataset)
 
     if (isDefined(thresholds)) {

@@ -207,14 +207,14 @@ private[recommendation] trait ALSParams extends ALSModelParams with HasMaxIter w
   def getNonnegative: Boolean = $(nonnegative)
 
   /**
-   * Param for StorageLevel for intermediate datasets. Pass in a string representation of
+   * Param for StorageLevel for intermediate org.apache.spark.ml.datasets. Pass in a string representation of
    * `StorageLevel`. Cannot be "NONE".
    * Default: "MEMORY_AND_DISK".
    *
    * @group expertParam
    */
   val intermediateStorageLevel = new Param[String](this, "intermediateStorageLevel",
-    "StorageLevel for intermediate datasets. Cannot be 'NONE'.",
+    "StorageLevel for intermediate org.apache.spark.ml.datasets. Cannot be 'NONE'.",
     (s: String) => Try(StorageLevel.fromString(s)).isSuccess && s != "NONE")
 
   /** @group expertGetParam */

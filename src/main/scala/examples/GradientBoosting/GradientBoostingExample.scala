@@ -3,7 +3,7 @@
  */
 package examples.GradientBoosting
 
-import datasets.UCI_adult
+import org.apache.spark.ml.datasets.UCI_adult
 import org.apache.spark.ml.classification.GBTClassifier
 import org.apache.spark.ml.evaluation.gcForestEvaluator
 import org.apache.spark.sql.SparkSession
@@ -28,9 +28,9 @@ object GradientBoostingExample {
 
       spark.sparkContext.setLogLevel(param.debugLevel)
 
-      val trainingData = new UCI_adult().load_data(spark, param.trainFile, param.featuresFile, 1,
+      val trainingData = new UCI_adult().load_data(spark, param.trainFile, param.featuresFile, true,
         if (param.parallelism > 0) param.parallelism else parallelism)
-      val testData = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, 1,
+      val testData = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, true,
         if (param.parallelism > 0) param.parallelism else parallelism)
 
       val gbt = new GBTClassifier()

@@ -636,8 +636,6 @@ private[spark] object GCForestImpl extends Logging {
     val numClasses: Int = strategy.classNum
     // TODO: better representation to model
     val erfModels = ArrayBuffer[Array[String]]() // layer - (forest * fold)
-    val n_train = input.count()
-    val n_test = validationInput.count()
 
     timer.start("multi_grain_Scan for Train and Test")
     if (strategy.idebug) println(s"[$getNowTime] timer.start(multi_grain_Scan for Train and Test)")
@@ -652,7 +650,8 @@ private[spark] object GCForestImpl extends Logging {
     scanFeature_test.cache()
     timer.stop("cache scanFeature of Train and Test")
     if (strategy.idebug) println(s"[$getNowTime] timer.stop(cache scanFeature of Train and Test)")
-
+    val n_train = scanFeature_train.count()
+    val n_test = scanFeature_test.count()
     println(s"[$getNowTime] Cascade Forest begin!")
 
     timer.start("init")
@@ -716,7 +715,7 @@ private[spark] object GCForestImpl extends Logging {
       if (strategy.idebug) println(s"[$getNowTime]" +
         s" timer.stop(merge to produce training, testing and persist)")
 
-      val features_dim = training.first().mkString.split(",").length  // action, get training truly
+      val features_dim = training.select(strategy.featuresCol).first().getAs[Vector](0).size // get training truly
 
       println(s"[$getNowTime] Training Set = ($n_train, $features_dim), " +
         s"Testing Set = ($n_test, $features_dim)")

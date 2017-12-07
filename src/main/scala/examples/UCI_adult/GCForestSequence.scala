@@ -4,7 +4,7 @@
 package examples.UCI_adult
 
 import org.apache.spark.ml.classification.{GCForestClassifier, RandomForestCARTClassifier}
-import datasets.UCI_adult
+import org.apache.spark.ml.datasets.UCI_adult
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.util.SizeEstimator
 import org.apache.spark.ml.util.engine.Engine
@@ -37,9 +37,9 @@ object GCForestSequence {
         case n if n < 0 => -1
         case _ => parallelism
       }
-      val train = new UCI_adult().load_data(spark, param.trainFile, param.featuresFile, 1,
+      val train = new UCI_adult().load_data(spark, param.trainFile, param.featuresFile, true,
         getParallelism)
-      val test = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, 1,
+      val test = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, true,
         getParallelism)
       if (param.idebug) println(s"Estimate trainset %.1f M,".format(SizeEstimator.estimate(train) / 1048576.0) +
         s" testset: %.1f M".format(SizeEstimator.estimate(test) / 1048576.0))

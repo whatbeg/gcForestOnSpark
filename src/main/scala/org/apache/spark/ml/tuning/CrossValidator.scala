@@ -56,7 +56,7 @@ private[ml] trait CrossValidatorParams extends ValidatorParams {
 
 /**
  * K-fold cross validation performs model selection by splitting the dataset into a set of
- * non-overlapping randomly partitioned folds which are used as separate training and test datasets
+ * non-overlapping randomly partitioned folds which are used as separate training and test org.apache.spark.ml.datasets
  * e.g., with k=3 folds, K-fold cross validation will generate 3 (training, test) dataset pairs,
  * each of which uses 2/3 of the data for training and 1/3 for testing. Each fold is used as the
  * test set exactly once.

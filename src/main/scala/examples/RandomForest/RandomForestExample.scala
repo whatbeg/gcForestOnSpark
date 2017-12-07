@@ -3,7 +3,7 @@
  */
 package examples.RandomForest
 
-import datasets.UCI_adult
+import org.apache.spark.ml.datasets.UCI_adult
 import org.apache.spark.ml.classification.RandomForestCARTClassifier
 import org.apache.spark.ml.linalg.Vector
 import org.apache.spark.sql.SparkSession
@@ -36,9 +36,9 @@ object RandomForestExample {
         case n if n < 0 => -1
         case _ => parallelism
       }
-      val train = new UCI_adult().load_data(spark, param.trainFile, param.featuresFile, 1,
+      val train = new UCI_adult().load_data(spark, param.trainFile, param.featuresFile, true,
         getParallelism)
-      val test = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, 1,
+      val test = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, true,
         getParallelism)
 
       println(s"Estimate trainset ${SizeEstimator.estimate(train)}, testset: ${SizeEstimator.estimate(test)}")

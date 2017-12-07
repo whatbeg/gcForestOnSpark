@@ -12,8 +12,8 @@ object Utils {
   val dateFormat: SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS")
   def getNowTime = dateFormat.format(new Date())
   case class TrainParams(
-              trainFile: String = "./data/uci_adult/adult_2000.data",
-              testFile: String = "./data/uci_adult/adult_1000.test",
+              trainFile: String = "./data/uci_adult/adult.data",
+              testFile: String = "./data/uci_adult/adult.test",
               featuresFile: String = "./data/uci_adult/features",
               model: String = "./models/uci_adult",
               featureSubsetStrategy: String = "sqrt",

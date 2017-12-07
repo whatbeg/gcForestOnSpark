@@ -4,7 +4,7 @@
 package examples.UCI_adult
 
 import org.apache.spark.ml.classification.GCBoostedTreeClassifier
-import datasets.UCI_adult
+import org.apache.spark.ml.datasets.UCI_adult
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.ml.util.engine.Engine
 
@@ -30,8 +30,8 @@ object GCBoostedTreeSeq {
 
       val output = param.model
 
-      val train = new UCI_adult().load_data(spark, param.trainFile, param.featuresFile, 1, parallelism)
-      val test = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, 1, parallelism)
+      val train = new UCI_adult().load_data(spark, param.trainFile, param.featuresFile, true, parallelism)
+      val test = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, true, parallelism)
 
       val gbtForest = new GCBoostedTreeClassifier()
         .setModelPath(param.model)

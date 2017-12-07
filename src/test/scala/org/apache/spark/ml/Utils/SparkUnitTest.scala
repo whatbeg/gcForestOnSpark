@@ -14,7 +14,7 @@ abstract class SparkUnitTest extends FunSuite with BeforeAndAfterAll {
   override def beforeAll(): Unit = {
     spark = SparkSession.builder()
       .appName(this.getClass.getSimpleName)
-      .master("local[4]")
+      .master("local[*]")
       .getOrCreate()
   }
 

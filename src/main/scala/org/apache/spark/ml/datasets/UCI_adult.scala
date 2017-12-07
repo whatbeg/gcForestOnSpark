@@ -2,12 +2,15 @@
  * Copyright 2017 Authors NJU PASA BigData Laboratory. Qiu Hu. huqiu00#163.com
  */
 
-package datasets
+package org.apache.spark.ml.datasets
 
 import org.apache.spark.ml.linalg.DenseVector
+import org.apache.spark.ml.linalg.VectorUDT
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.sql.functions.{col, udf}
 import org.apache.spark.sql.types._
+
+import scala.io.Source
 
 
 class UCI_adult extends BaseDatasets {
@@ -22,7 +25,7 @@ class UCI_adult extends BaseDatasets {
   def load_data(spark: SparkSession,
                 phase: String,
                 featuresPath: String,
-                cate_as_onehot: Int,
+                cate_as_onehot: Boolean,
                 repar: Int = 0): DataFrame = {
     val data_path =
       if (phase == "train") "data/uci_adult/sample_adult.data"
@@ -39,9 +42,9 @@ class UCI_adult extends BaseDatasets {
       new FeatureParser(line)
     }
 
-    val total_dims = f_parsers.map { fts =>
+    val total_dims = if (cate_as_onehot) f_parsers.map { fts =>
       fts.get_fdim()
-    }.reduce((l, r) => l+r)
+    }.reduce((l, r) => l+r) else 14
 
     val f_parsers_array = f_parsers.collect()
 
@@ -51,12 +54,12 @@ class UCI_adult extends BaseDatasets {
       val splits = line.split(",")
       require(splits.length == 15, s"row $idx: $line has no 15 features, length: ${row.length}")
       val label = if (splits(14).contains("<=50K")) 0.0d else 1.0d
-      val data = splits.dropRight(1).zipWithIndex.map { case (feature, indx) =>
+      val data = if (cate_as_onehot) splits.dropRight(1).zipWithIndex.map { case (feature, indx) =>
         f_parsers_array(indx).get_data(feature.trim)
       }.reduce((l, r) => l ++ r)
-//      ++ Array.tabulate[Double](16) { _ =>
-//        Random.nextDouble()
-//      }
+      else splits.dropRight(1).zipWithIndex.map { case (feature, indx) =>
+        f_parsers_array(indx).get_double(feature.trim)
+      }
       require(data.length == total_dims,
         "Total dims %d not equal to data.length %d".format(total_dims, data.length))
       Row.fromSeq(Seq[Any](label, data, idx))
@@ -68,10 +71,13 @@ class UCI_adult extends BaseDatasets {
       .add(StructField("features", ArrayType(DoubleType)))
       .add(StructField("instance", LongType))
 
-    val arr2vec = udf {(features: Seq[Double]) => new DenseVector(features.toArray)}
-    spark.createDataFrame(repartitioned, schema)
+    val arr2vec = udf { (features: Seq[Double]) => new DenseVector(features.toArray) }
+    val return_data = spark.createDataFrame(repartitioned, schema)
       .withColumn("features", arr2vec(col("features")))
-
+    if (!cate_as_onehot)
+      return_data.schema.fields.update(1, StructField("features", new VectorUDT, true,
+        Metadata.fromJson(Source.fromFile("data/features.json").mkString)))
+    return_data
   }
 }
 

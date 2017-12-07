@@ -63,7 +63,7 @@ private[spark] object GradientBoostedTrees extends Logging {
    * @param validationInput Validation dataset.
    *                        This dataset should be different from the training dataset,
    *                        but it should follow the same distribution.
-   *                        E.g., these two datasets could be created from an original dataset
+   *                        E.g., these two org.apache.spark.ml.datasets could be created from an original dataset
    *                        by using `org.apache.spark.rdd.RDD.randomSplit()`
    * @param seed Random seed.
    * @return tuple of ensemble models and weights:

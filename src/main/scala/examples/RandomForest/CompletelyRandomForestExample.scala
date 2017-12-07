@@ -3,7 +3,7 @@
  */
 package examples.RandomForest
 
-import datasets.UCI_adult
+import org.apache.spark.ml.datasets.UCI_adult
 import org.apache.spark.ml.classification.CompletelyRandomForestClassifier
 import org.apache.spark.ml.evaluation.gcForestEvaluator
 import org.apache.spark.sql.SparkSession
@@ -28,9 +28,9 @@ object CompletelyRandomForestExample {
 
       spark.sparkContext.setLogLevel(param.debugLevel)
 
-      val train = new UCI_adult().load_data(spark, param.trainFile, param.featuresFile, 1,
+      val train = new UCI_adult().load_data(spark, param.trainFile, param.featuresFile, true,
         if (param.parallelism > 0) param.parallelism else parallelism)
-      val test = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, 1,
+      val test = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, true,
         if (param.parallelism > 0) param.parallelism else parallelism)
 
       val randomForest = new CompletelyRandomForestClassifier()

@@ -262,7 +262,7 @@ class RFormulaModel private[feature](
       StructType(withFeatures.fields :+ StructField($(labelCol), DoubleType, nullable))
     } else {
       // Ignore the label field. This is a hack so that this transformer can also work on test
-      // datasets in a Pipeline.
+      // org.apache.spark.ml.datasets in a Pipeline.
       withFeatures
     }
   }
@@ -289,7 +289,7 @@ class RFormulaModel private[feature](
       }
     } else {
       // Ignore the label field. This is a hack so that this transformer can also work on test
-      // datasets in a Pipeline.
+      // org.apache.spark.ml.datasets in a Pipeline.
       dataset.toDF
     }
   }
