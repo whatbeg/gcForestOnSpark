@@ -4,7 +4,7 @@
 package examples.RandomForest
 
 import org.apache.spark.ml.datasets.UCI_adult
-import org.apache.spark.ml.classification.RandomForestCARTClassifier
+import org.apache.spark.ml.classification.CompletelyRandomForestClassifier
 import org.apache.spark.ml.evaluation.gcForestEvaluator
 import org.apache.spark.ml.feature.{StringIndexer, VectorIndexer}
 import org.apache.spark.ml.linalg.Vector
@@ -48,11 +48,11 @@ object RandomForestExampleWithML {
 //        case _ => parallelism
 //      }
 //      println(s"Estimate trainset ${SizeEstimator.estimate(train)}, testset: ${SizeEstimator.estimate(test)}")
-//      println(s"Train set shape (${train.count()}, ${train.head.getAs[Vector]("features").size-2})")
+      println(s"Train set shape (${train.count()}, ${train.head.getAs[Vector]("features").size})")
 //
       Range(0, param.count).foreach { i =>
         val stime = System.currentTimeMillis()
-        val randomForest = new RandomForestCARTClassifier()
+        val randomForest = new CompletelyRandomForestClassifier()
           .setMaxBins(param.maxBins)
           .setMaxDepth(param.maxDepth)
           .setMinInstancesPerNode(param.MinInsPerNode)

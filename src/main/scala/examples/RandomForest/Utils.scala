@@ -16,7 +16,7 @@ object Utils {
               testFile: String = "./data/uci_adult/adult.test",
               featuresFile: String = "./data/uci_adult/features",
               model: String = "./models/uci_adult",
-              featureSubsetStrategy: String = "sqrt",
+              featureSubsetStrategy: String = " ",
               classNum: Int = 2,
               ForestTreeNum: Int = 500,
               MinInsPerNode: Int = 2,
