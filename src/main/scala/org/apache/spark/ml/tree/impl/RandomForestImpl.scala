@@ -783,26 +783,25 @@ private[spark] object RandomForestImpl extends Logging {
           // Cumulative sum (scanLeft) of bin statistics.
           // Afterwards, binAggregates for a bin is the sum of aggregates for
           // that bin + all preceding bins.
-//          val nodeFeatureOffset = binAggregates.getFeatureOffset(featureIndexIdx)
-//          var splitIndex = 0
-//          while (splitIndex < numSplits) {
-//            binAggregates.mergeForFeature(nodeFeatureOffset, splitIndex + 1, splitIndex)
-//            splitIndex += 1
-//          }
+          val nodeFeatureOffset = binAggregates.getFeatureOffset(featureIndexIdx)
+          var splitIndex = 0
+          while (splitIndex < numSplits) {
+            binAggregates.mergeForFeature(nodeFeatureOffset, splitIndex + 1, splitIndex)
+            splitIndex += 1
+          }
           // Find best split.
           // scalastyle:off println
           val (bestFeatureSplitIndex, bestFeatureGainStats) =
-           getContinuousBestSplit(binAggregates, gainAndImpurityStats, numSplits, featureIndexIdx)
-//            Range(0, numSplits).map { splitIdx =>
-//              val leftChildStats =
-//                    binAggregates.getImpurityCalculator(nodeFeatureOffset, splitIdx)
-//              val rightChildStats =
-//                binAggregates.getImpurityCalculator(nodeFeatureOffset, numSplits)
-//              rightChildStats.subtract(leftChildStats)
-//              gainAndImpurityStats = calculateImpurityStats(gainAndImpurityStats,
-//                leftChildStats, rightChildStats, binAggregates.metadata)
-//              (splitIdx, gainAndImpurityStats)
-//            }.maxBy(_._2.gain)
+            Range(0, numSplits).map { splitIdx =>
+              val leftChildStats =
+                    binAggregates.getImpurityCalculator(nodeFeatureOffset, splitIdx)
+              val rightChildStats =
+                binAggregates.getImpurityCalculator(nodeFeatureOffset, numSplits)
+              rightChildStats.subtract(leftChildStats)
+              gainAndImpurityStats = calculateImpurityStats(gainAndImpurityStats,
+                leftChildStats, rightChildStats, binAggregates.metadata)
+              (splitIdx, gainAndImpurityStats)
+            }.maxBy(_._2.gain)
           (splits(featureIndex)(bestFeatureSplitIndex), bestFeatureGainStats)
         } else if (binAggregates.metadata.isUnordered(featureIndex)) {
           // Unordered categorical feature
