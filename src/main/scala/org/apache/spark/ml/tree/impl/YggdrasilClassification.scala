@@ -82,7 +82,7 @@ object YggdrasilClassification extends Logging {
 //          }
 //      }
       // Compute best split for each active node.
-      val bestSplitsAndGains: Array[(Option[Split], ImpurityStats)] =
+      val bestSplitsAndGains: Array[(Option[YggSplit], ImpurityStats)] =
         computeBestSplits(partitionInfos, labelsBc, metadata)
 //      println("bestSplitAndGains:")
 //      for (elem <- bestSplitsAndGains) {
@@ -114,7 +114,7 @@ object YggdrasilClassification extends Logging {
       doneLearning = currentLevel + 1 >= maxDepth || estimatedRemainingActive == 0
 
       if (!doneLearning) {
-        val splits: Array[Option[Split]] = bestSplitsAndGains.map(_._1)
+        val splits: Array[Option[YggSplit]] = bestSplitsAndGains.map(_._1)
 
         // Aggregate bit vector (1 bit/instance) indicating whether each instance goes left/right
         val aggBitVector: RoaringBitmap = YggdrasilImpl.aggregateBitVector(partitionInfos, splits, numRows)
@@ -166,12 +166,12 @@ object YggdrasilClassification extends Logging {
     // Each worker returns:
     //   for each active node, best split + info gain,
     //     where the best split is None if no useful split exists
-    val partBestSplitsAndGains: RDD[Array[(Option[Split], ImpurityStats)]] = partitionInfos.map {
+    val partBestSplitsAndGains: RDD[Array[(Option[YggSplit], ImpurityStats)]] = partitionInfos.map {
       case PartitionInfo(columns: Array[FeatureVector], nodeOffsets: Array[Int],
       activeNodes: BitSet, fullImpurityAggs: Array[ImpurityAggregatorSingle]) =>
         val localLabels = labelsBc.value
         // Iterate over the active nodes in the current level.
-        val toReturn = new Array[(Option[Split], ImpurityStats)](activeNodes.cardinality())
+        val toReturn = new Array[(Option[YggSplit], ImpurityStats)](activeNodes.cardinality())
         val iter: Iterator[Int] = activeNodes.iterator
         var i = 0
         while (iter.hasNext) {
@@ -189,9 +189,9 @@ object YggdrasilClassification extends Logging {
         toReturn
     }
 
-//    partBestSplitsAndGains.zipWithIndex.foreach { case (array: Array[(Option[Split], ImpurityStats)], idx: Int) =>
+//    partBestSplitsAndGains.zipWithIndex.foreach { case (array: Array[(Option[YggSplit], ImpurityStats)], idx: Int) =>
 //      println(s"feature $idx")
-//      array.foreach { case (split: Option[Split], impurityStats: ImpurityStats) =>
+//      array.foreach { case (split: Option[YggSplit], impurityStats: ImpurityStats) =>
 //        println(split.getOrElse(new ContinuousSplit(-1, -1)).asInstanceOf[ContinuousSplit].featureIndex +
 //          " " + split.getOrElse(new ContinuousSplit(-1, -1)).asInstanceOf[ContinuousSplit].threshold +
 //          " " + impurityStats.toString())
@@ -227,7 +227,7 @@ object YggdrasilClassification extends Logging {
                      fromOffset: Int,
                      toOffset: Int,
                      fullImpurityAgg: ImpurityAggregatorSingle,
-                     metadata: YggdrasilMetadata): (Option[Split], ImpurityStats) = {
+                     metadata: YggdrasilMetadata): (Option[YggSplit], ImpurityStats) = {
     if (col.isCategorical) {
       if (metadata.isUnorderedFeature(col.featureIndex)) {
         val splits: Array[CategoricalSplit] = metadata.getUnorderedSplits(col.featureIndex)
@@ -268,7 +268,7 @@ object YggdrasilClassification extends Logging {
                      from: Int,
                      to: Int,
                      metadata: YggdrasilMetadata,
-                     featureArity: Int): (Option[Split], ImpurityStats) = {
+                     featureArity: Int): (Option[YggSplit], ImpurityStats) = {
     // TODO: Support high-arity features by using a single array to hold the stats.
 
     // aggStats(category) = label statistics for category
@@ -370,7 +370,7 @@ object YggdrasilClassification extends Logging {
     val categoriesForSplit =
       categoriesSortedByCentroid.slice(0, bestSplitIndex + 1).map(_.toDouble)
     val bestFeatureSplit =
-      new CategoricalSplit(featureIndex, categoriesForSplit.toArray, featureArity)
+      new YggCategoricalSplit(featureIndex, categoriesForSplit.toArray, featureArity)
     val fullImpurityAgg = leftImpurityAgg.deepCopy().add(rightImpurityAgg)
     val bestRightImpurityAgg = fullImpurityAgg.deepCopy().subtract(bestLeftImpurityAgg)
     val bestImpurityStats = new ImpurityStats(bestGain, fullImpurity, fullImpurityAgg.getCalculator,
@@ -405,7 +405,7 @@ object YggdrasilClassification extends Logging {
                      to: Int,
                      metadata: YggdrasilMetadata,
                      featureArity: Int,
-                     splits: Array[CategoricalSplit]): (Option[Split], ImpurityStats) = {
+                     splits: Array[CategoricalSplit]): (Option[YggSplit], ImpurityStats) = {
 
     // Label stats for each category
     val aggStats = Array.tabulate[ImpurityAggregatorSingle](featureArity)(
@@ -464,7 +464,7 @@ object YggdrasilClassification extends Logging {
 
       val bestFeatureSplit = bestSplit match {
         case Some(split) => Some(
-          new CategoricalSplit(featureIndex, split.leftCategories, featureArity))
+          new YggCategoricalSplit(featureIndex, split.leftCategories, featureArity))
         case None => None
 
       }
@@ -490,7 +490,7 @@ object YggdrasilClassification extends Logging {
                      from: Int,
                      to: Int,
                      fullImpurityAgg: ImpurityAggregatorSingle,
-                     metadata: YggdrasilMetadata): (Option[Split], ImpurityStats) = {
+                     metadata: YggdrasilMetadata): (Option[YggSplit], ImpurityStats) = {
 
     val leftImpurityAgg = metadata.createImpurityAggregator()
     val rightImpurityAgg = fullImpurityAgg.deepCopy()
@@ -533,7 +533,7 @@ object YggdrasilClassification extends Logging {
     val bestImpurityStats = new ImpurityStats(bestGain, fullImpurity, fullImpurityAgg.getCalculator,
       bestLeftImpurityAgg.getCalculator, bestRightImpurityAgg.getCalculator)
     val split = if (bestThreshold != Double.NegativeInfinity && bestThreshold != values.last) {
-      Some(new ContinuousSplit(featureIndex, bestThreshold))
+      Some(new YggContinuousSplit(featureIndex, bestThreshold))
     } else {
       None
     }

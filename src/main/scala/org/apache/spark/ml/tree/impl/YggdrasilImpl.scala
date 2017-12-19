@@ -118,7 +118,7 @@ private[spark] object YggdrasilImpl extends Logging{
     */
   private[impl] def computeActiveNodePeriphery(
                       oldPeriphery: Array[LearningNode],
-                      bestSplitsAndGains: Array[(Option[Split], ImpurityStats)],
+                      bestSplitsAndGains: Array[(Option[YggSplit], ImpurityStats)],
                       minInfoGain: Double): Array[LearningNode] = {
     bestSplitsAndGains.zipWithIndex.flatMap { case ((split, stats), nodeIdx) =>
       val node = oldPeriphery(nodeIdx)
@@ -130,7 +130,7 @@ private[spark] object YggdrasilImpl extends Logging{
         node.rightChild = Some(LearningNode(node.id * 2 + 1, isLeaf = false,
           new ImpurityStats(Double.NaN, stats.rightImpurity, stats.rightImpurityCalculator,
             null, null, true)))
-        node.split = split
+        node.split = Some(split.get.toML)
         node.isLeaf = false
         node.stats = stats
         Iterator(node.leftChild.get, node.rightChild.get)
@@ -149,24 +149,24 @@ private[spark] object YggdrasilImpl extends Logging{
     *   Correction: Aggregate only the pieces of that vector corresponding to instances at
     *   active nodes.
     * @param partitionInfos  RDD with feature data, plus current status metadata
-    * @param bestSplits  Split for each active node, or None if that node will not be split
+    * @param bestSplits  YggSplit for each active node, or None if that node will not be split
     * @return Array of bit vectors, ordered by offset ranges
     */
   private[impl] def aggregateBitVector(
-                                        partitionInfos: RDD[PartitionInfo],
-                                        bestSplits: Array[Option[Split]],
-                                        numRows: Int): RoaringBitmap = {
-    val bestSplitsBc: Broadcast[Array[Option[Split]]] =
+                    partitionInfos: RDD[PartitionInfo],
+                    bestSplits: Array[Option[YggSplit]],
+                    numRows: Int): RoaringBitmap = {
+    val bestSplitsBc: Broadcast[Array[Option[YggSplit]]] =
       partitionInfos.sparkContext.broadcast(bestSplits)
     val workerBitSubvectors: RDD[RoaringBitmap] = partitionInfos.map {
       case PartitionInfo(columns: Array[FeatureVector], nodeOffsets: Array[Int],
       activeNodes: BitSet, fullImpurities: Array[ImpurityAggregatorSingle]) =>
-        val localBestSplits: Array[Option[Split]] = bestSplitsBc.value
+        val localBestSplits: Array[Option[YggSplit]] = bestSplitsBc.value
         // localFeatureIndex[feature index] = index into PartitionInfo.columns
         val localFeatureIndex: Map[Int, Int] = columns.map(_.featureIndex).zipWithIndex.toMap
         val bitSetForNodes: Iterator[RoaringBitmap] = activeNodes.iterator
           .zip(localBestSplits.iterator).flatMap {
-          case (nodeIndexInLevel: Int, Some(split: Split)) =>
+          case (nodeIndexInLevel: Int, Some(split: YggSplit)) =>
             if (localFeatureIndex.contains(split.featureIndex)) {
               // This partition has the column (feature) used for this split.
               val fromOffset = nodeOffsets(nodeIndexInLevel)
@@ -203,7 +203,7 @@ private[spark] object YggdrasilImpl extends Logging{
     * @param col  Column for feature
     * @param from  Start offset in col for the node
     * @param to  End offset in col for the node
-    * @param split  Split to apply to instances at this node.
+    * @param split  YggSplit to apply to instances at this node.
     * @return  Bits indicating splits for instances at this node.
     *          These bits are sorted by the row indices, in order to guarantee an ordering
     *          understood by all workers.
@@ -215,7 +215,7 @@ private[spark] object YggdrasilImpl extends Logging{
                     col: FeatureVector,
                     from: Int,
                     to: Int,
-                    split: Split,
+                    split: YggSplit,
                     numRows: Int): RoaringBitmap = {
     val bitv = new RoaringBitmap()
     var i = from
@@ -280,7 +280,7 @@ private[spark] object YggdrasilImpl extends Logging{
       *     For each (previously) active node,
       *       Sort corresponding range of instances based on bit vector.
       * Update nodeOffsets, activeNodes:
-      *   Split offsets for nodes which split (which can be identified using the bit vector).
+      *   YggSplit offsets for nodes which split (which can be identified using the bit vector).
       *
       * @param instanceBitVector  Bit vector encoding splits for the next level of the tree.
       *                    These must follow a 2-level ordering, where the first level is by node
@@ -431,7 +431,7 @@ private[spark] object YggdrasilImpl extends Logging{
       *     For each (previously) active node,
       *       Sort corresponding range of instances based on bit vector.
       * Update nodeOffsets, activeNodes:
-      *   Split offsets for nodes which split (which can be identified using the bit vector).
+      *   YggSplit offsets for nodes which split (which can be identified using the bit vector).
       *
       * @param instanceBitVector  Bit vector encoding splits for the next level of the tree.
       *                    These must follow a 2-level ordering, where the first level is by node

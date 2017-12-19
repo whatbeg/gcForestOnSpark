@@ -5,6 +5,7 @@ package org.apache.spark.ml.tree
 
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.ml.linalg.Vector
+import org.apache.spark.ml.tree.{Split => MLSplit}
 import org.apache.spark.mllib.tree.configuration.{FeatureType => OldFeatureType}
 import org.apache.spark.mllib.tree.model.{Split => OldSplit}
 
@@ -15,7 +16,7 @@ import org.apache.spark.mllib.tree.model.{Split => OldSplit}
   * to choose the left or right path.
   */
 @DeveloperApi
-sealed trait Split extends Serializable {
+sealed trait YggSplit extends Serializable {
 
   /** Index of feature which this split tests */
   def featureIndex: Int
@@ -31,7 +32,7 @@ sealed trait Split extends Serializable {
     * @param binnedFeature Binned feature value.
     * @param splits All splits for the given feature.
     */
-  private[tree] def shouldGoLeft(binnedFeature: Int, splits: Array[Split]): Boolean
+  private[tree] def shouldGoLeft(binnedFeature: Int, splits: Array[YggSplit]): Boolean
 
   /**
     * Return true (split to left) or false (split to right).
@@ -41,17 +42,32 @@ sealed trait Split extends Serializable {
 
   /** Convert to old Split format */
   private[tree] def toOld: OldSplit
+
+  /** Convert to ml Split format */
+  private[tree] def toML: MLSplit
 }
 
-private[tree] object Split {
+private[tree] object YggSplit {
 
-  def fromOld(oldSplit: OldSplit, categoricalFeatures: Map[Int, Int]): Split = {
+  def fromOld(oldSplit: OldSplit, categoricalFeatures: Map[Int, Int]): YggSplit = {
     oldSplit.featureType match {
       case OldFeatureType.Categorical =>
-        new CategoricalSplit(featureIndex = oldSplit.feature,
+        new YggCategoricalSplit(featureIndex = oldSplit.feature,
           _leftCategories = oldSplit.categories.toArray, categoricalFeatures(oldSplit.feature))
       case OldFeatureType.Continuous =>
-        new ContinuousSplit(featureIndex = oldSplit.feature, threshold = oldSplit.threshold)
+        new YggContinuousSplit(featureIndex = oldSplit.feature, threshold = oldSplit.threshold)
+    }
+  }
+
+  def fromML(mlSplit: MLSplit, categoricalFeatures: Map[Int, Int]): YggSplit = {
+    mlSplit match {
+      case cate: CategoricalSplit =>
+        new YggCategoricalSplit(mlSplit.asInstanceOf[CategoricalSplit].featureIndex,
+          mlSplit.asInstanceOf[CategoricalSplit].leftCategories,
+          mlSplit.asInstanceOf[CategoricalSplit].numCategories)
+      case cont: ContinuousSplit =>
+        new YggContinuousSplit(mlSplit.asInstanceOf[ContinuousSplit].featureIndex,
+          mlSplit.asInstanceOf[ContinuousSplit].threshold)
     }
   }
 }
@@ -65,11 +81,11 @@ private[tree] object Split {
   * @param numCategories  Number of categories for this feature.
   */
 @DeveloperApi
-final class CategoricalSplit private[ml] (
+final class YggCategoricalSplit private[ml] (
      override val featureIndex: Int,
      _leftCategories: Array[Double],
      private val numCategories: Int)
-  extends Split {
+  extends YggSplit {
 
   require(_leftCategories.forall(cat => 0 <= cat && cat < numCategories), "Invalid leftCategories" +
     s" (should be in range [0, $numCategories)): ${_leftCategories.mkString(",")}")
@@ -96,7 +112,7 @@ final class CategoricalSplit private[ml] (
     }
   }
 
-  override private[tree] def shouldGoLeft(binnedFeature: Int, splits: Array[Split]): Boolean = {
+  override private[tree] def shouldGoLeft(binnedFeature: Int, splits: Array[YggSplit]): Boolean = {
     if (isLeft) {
       categories.contains(binnedFeature.toDouble)
     } else {
@@ -114,7 +130,7 @@ final class CategoricalSplit private[ml] (
 
   override def equals(o: Any): Boolean = {
     o match {
-      case other: CategoricalSplit => featureIndex == other.featureIndex &&
+      case other: YggCategoricalSplit => featureIndex == other.featureIndex &&
         isLeft == other.isLeft && categories == other.categories
       case _ => false
     }
@@ -127,6 +143,10 @@ final class CategoricalSplit private[ml] (
       setComplement(categories)
     }
     OldSplit(featureIndex, threshold = 0.0, OldFeatureType.Categorical, oldCats.toList)
+  }
+
+  override private[tree] def toML: MLSplit = {
+    new CategoricalSplit(featureIndex, _leftCategories, numCategories)
   }
 
   /** Get sorted categories which split to the left */
@@ -155,19 +175,19 @@ final class CategoricalSplit private[ml] (
   *                    Otherwise, it goes right.
   */
 @DeveloperApi
-final class ContinuousSplit private[ml] (override val featureIndex: Int, val threshold: Double)
-  extends Split {
+final class YggContinuousSplit private[ml] (override val featureIndex: Int, val threshold: Double)
+  extends YggSplit {
 
   override private[ml] def shouldGoLeft(features: Vector): Boolean = {
     features(featureIndex) <= threshold
   }
 
-  override private[tree] def shouldGoLeft(binnedFeature: Int, splits: Array[Split]): Boolean = {
+  override private[tree] def shouldGoLeft(binnedFeature: Int, splits: Array[YggSplit]): Boolean = {
     if (binnedFeature == splits.length) {
       // > last split, so split right
       false
     } else {
-      val featureValueUpperBound = splits(binnedFeature).asInstanceOf[ContinuousSplit].threshold
+      val featureValueUpperBound = splits(binnedFeature).asInstanceOf[YggContinuousSplit].threshold
       featureValueUpperBound <= threshold
     }
   }
@@ -187,5 +207,9 @@ final class ContinuousSplit private[ml] (override val featureIndex: Int, val thr
 
   override private[tree] def toOld: OldSplit = {
     OldSplit(featureIndex, threshold, OldFeatureType.Continuous, List.empty[Double])
+  }
+
+  override private[tree] def toML: MLSplit = {
+    new ContinuousSplit(featureIndex, threshold)
   }
 }
