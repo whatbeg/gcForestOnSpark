@@ -6,6 +6,7 @@ package org.apache.spark.ml.tree.impl
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.ml.tree._
 import YggdrasilImpl.{FeatureVector, PartitionInfo}
+import org.apache.spark.internal.Logging
 import org.apache.spark.ml.feature.LabeledPoint
 import org.apache.spark.mllib.tree.model.ImpurityStats
 import org.apache.spark.rdd.RDD
@@ -14,7 +15,7 @@ import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.collection.BitSet
 import org.roaringbitmap.RoaringBitmap
 
-object YggdrasilClassification {
+object YggdrasilClassification extends Logging {
 
   def trainImpl(
        input: RDD[LabeledPoint],
@@ -41,7 +42,7 @@ object YggdrasilClassification {
 //    for (elem <- ha) {
 //      print(s"feature ${elem.featureIndex}: ")
 //      // println(elem.indices.mkString(","))
-//      println(elem.values.distinct.mkString(","))
+//      println(elem.values.mkString(","))
 //    }
     // Group columns together into one array of columns per partition.
     // TODO: Test avoiding this grouping, and see if it matters.
@@ -71,11 +72,15 @@ object YggdrasilClassification {
     // Active nodes (still being split), updated each iteration
     var activeNodePeriphery: Array[LearningNode] = Array(rootNode)
     var numNodeOffsets: Int = 2
-    var totalNodes = 0
     // Iteratively learn, one level of the tree at a time.
     var currentLevel = 0
     var doneLearning = false
     while (currentLevel < maxDepth && !doneLearning) {
+//      partitionInfos.collect().foreach { case (partitionInfo: PartitionInfo) =>
+//          partitionInfo.columns.foreach { case (featureVector: FeatureVector) =>
+//              println(s"${featureVector.featureIndex}: ${featureVector.values.mkString(",")}")
+//          }
+//      }
       // Compute best split for each active node.
       val bestSplitsAndGains: Array[(Option[Split], ImpurityStats)] =
         computeBestSplits(partitionInfos, labelsBc, metadata)
@@ -97,7 +102,6 @@ object YggdrasilClassification {
       activeNodePeriphery =
         YggdrasilImpl.computeActiveNodePeriphery(activeNodePeriphery, bestSplitsAndGains, metadata.minInfoGain)
       // activeNodePeriphery.foreach(println(_))
-      totalNodes += activeNodePeriphery.length
       // We keep all old nodeOffsets and add one for each node split.
       // Each node split adds 2 nodes to activeNodePeriphery.
       // TODO: Should this be calculated after filtering for impurity??
@@ -122,7 +126,7 @@ object YggdrasilClassification {
         val ser = new KryoSerializer(input.sparkContext.getConf).newInstance()
         val buf = ser.serialize(aggBitVector)
         val buf2 = ser.serialize(bv)
-        println(s"currentLevel: $currentLevel," +
+        logWarning(s"currentLevel: $currentLevel," +
           s" RoaringBitmap num bytes: ${buf.remaining()}, BitSet num bytes: ${buf2.remaining()}")
         val newPartitionInfos = partitionInfos.map { partitionInfo =>
           partitionInfo.update(bv, numNodeOffsets, labelsBc.value, metadata)
@@ -139,7 +143,6 @@ object YggdrasilClassification {
     // Done with learning
     groupedColStore.unpersist()
     labelsBc.unpersist()
-    // println(s"Total Nodes: $totalNodes")
     rootNode.toNode
   }
 
@@ -152,9 +155,9 @@ object YggdrasilClassification {
     *          where the split is None if no useful split exists
     */
   private[impl] def computeBestSplits(
-                                       partitionInfos: RDD[PartitionInfo],
-                                       labelsBc: Broadcast[Array[Byte]],
-                                       metadata: YggdrasilMetadata) = {
+                     partitionInfos: RDD[PartitionInfo],
+                     labelsBc: Broadcast[Array[Byte]],
+                     metadata: YggdrasilMetadata) = {
     // On each partition, for each feature on the partition, select the best split for each node.
     // This will use:
     //  - groupedColStore (the features)
@@ -186,10 +189,22 @@ object YggdrasilClassification {
         toReturn
     }
 
+//    partBestSplitsAndGains.zipWithIndex.foreach { case (array: Array[(Option[Split], ImpurityStats)], idx: Int) =>
+//      println(s"feature $idx")
+//      array.foreach { case (split: Option[Split], impurityStats: ImpurityStats) =>
+//        println(split.getOrElse(new ContinuousSplit(-1, -1)).asInstanceOf[ContinuousSplit].featureIndex +
+//          " " + split.getOrElse(new ContinuousSplit(-1, -1)).asInstanceOf[ContinuousSplit].threshold +
+//          " " + impurityStats.toString())
+//      }
+//    }
     // Aggregate best split for each active node.
     partBestSplitsAndGains.treeReduce { case (splitsGains1, splitsGains2) =>
       splitsGains1.zip(splitsGains2).map { case ((split1, gain1), (split2, gain2)) =>
-        if (gain1.gain >= gain2.gain) {
+        if (split1.getOrElse(None) == None) {
+          (split2, gain2)
+        } else if (split2.getOrElse(None) == None) {
+          (split1, gain1)
+        } else if (gain1.gain > gain2.gain) {
           (split1, gain1)
         } else {
           (split2, gain2)
@@ -207,12 +222,12 @@ object YggdrasilClassification {
     *          in one leaf node, then it will be set to None.
     */
   private[impl] def chooseSplit(
-                                 col: FeatureVector,
-                                 labels: Array[Byte],
-                                 fromOffset: Int,
-                                 toOffset: Int,
-                                 fullImpurityAgg: ImpurityAggregatorSingle,
-                                 metadata: YggdrasilMetadata): (Option[Split], ImpurityStats) = {
+                     col: FeatureVector,
+                     labels: Array[Byte],
+                     fromOffset: Int,
+                     toOffset: Int,
+                     fullImpurityAgg: ImpurityAggregatorSingle,
+                     metadata: YggdrasilMetadata): (Option[Split], ImpurityStats) = {
     if (col.isCategorical) {
       if (metadata.isUnorderedFeature(col.featureIndex)) {
         val splits: Array[CategoricalSplit] = metadata.getUnorderedSplits(col.featureIndex)
@@ -492,7 +507,7 @@ object YggdrasilClassification {
     while (j < to) {
       val value = values(j)
       val label = labels(indices(j))
-      if (value != currentThreshold) {
+      if (value != currentThreshold) {  // change currentThreshold to -111 @huqiu
         // Check gain
         val leftWeight = leftCount / fullCount
         val rightWeight = rightCount / fullCount

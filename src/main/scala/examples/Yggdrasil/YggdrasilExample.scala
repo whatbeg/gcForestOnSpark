@@ -18,7 +18,7 @@ object YggdrasilExample {
 
     val spark = SparkSession.builder()
       .appName(this.getClass.getSimpleName)
-      .master("local[*]")
+//      .master("local[*]")
       .getOrCreate()
 
     val parallelism = Engine.getParallelism(spark.sparkContext)
@@ -41,7 +41,6 @@ object YggdrasilExample {
       val test = new UCI_adult().load_data(spark, param.testFile, param.featuresFile, 1,
         getParallelism)
 
-      println(s"Estimate trainset ${SizeEstimator.estimate(train)}, testset: ${SizeEstimator.estimate(test)}")
       println(s"Train set shape (${train.count()}, ${train.head.getAs[Vector]("features").size})")
 
       val stime = System.currentTimeMillis()
@@ -57,6 +56,7 @@ object YggdrasilExample {
       val model = ygg_tree.fit(train)
       println("Model Size estimates: %.1f M".format(SizeEstimator.estimate(model) / 1048576.0))
       println(s"Fit a random forest in Spark cost ${(System.currentTimeMillis() - stime) / 1000.0} s")
+      println(s"Total nodes: ${model.numNodes}")
 
       val predictions = model.transform(test)
 

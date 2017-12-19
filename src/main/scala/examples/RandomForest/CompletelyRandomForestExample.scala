@@ -43,6 +43,7 @@ object CompletelyRandomForestExample {
         .setCacheNodeIds(param.cacheNodeId)
 
       val model = randomForest.fit(train)
+      println(s"Total nodes: ${model.totalNumNodes}")
 
       val predictions = model.transform(test)
 
