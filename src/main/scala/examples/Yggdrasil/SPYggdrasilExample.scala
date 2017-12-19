@@ -1,29 +1,28 @@
 /*
  * Copyright 2017 Authors NJU PASA BigData Laboratory. Qiu Hu. huqiu00#163.com
  */
-package examples.RandomForest
+package examples.Yggdrasil
 
 import datasets.UCI_adult
-import org.apache.spark.ml.classification.RandomForestCARTClassifier
 import org.apache.spark.ml.evaluation.gcForestEvaluator
 import org.apache.spark.ml.linalg.Vector
+import org.apache.spark.ml.classification.YggdrasilClassifier
+import org.apache.spark.ml.util.engine.Engine
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.util.SizeEstimator
-import org.apache.spark.ml.util.engine.Engine
 
-object RandomForestExample2 {
+object SPYggdrasilExample {
   def main(args: Array[String]): Unit = {
 
     import Utils._
 
     val spark = SparkSession.builder()
       .appName(this.getClass.getSimpleName)
-//      .master("local[*]")
+      .master("local[*]")
       .getOrCreate()
 
     val parallelism = Engine.getParallelism(spark.sparkContext)
     println(s"Total Cores is $parallelism")
-    //    spark.conf.set("spark.locality.wait.node", 0)
 
     trainParser.parse(args, TrainParams()).foreach(param => {
 
@@ -43,23 +42,21 @@ object RandomForestExample2 {
         getParallelism)
 
       println(s"Estimate trainset ${SizeEstimator.estimate(train)}, testset: ${SizeEstimator.estimate(test)}")
-      println(s"Train set shape (${train.count()}, ${train.head.getAs[Vector]("features").size-2})")
+      println(s"Train set shape (${train.count()}, ${train.head.getAs[Vector]("features").size})")
 
       val stime = System.currentTimeMillis()
-      val randomForest = new RandomForestCARTClassifier()
-        .setMaxBins(param.maxBins)
+      val ygg_tree = new YggdrasilClassifier()
+        .setFeaturesCol("features")
+        .setLabelCol("label")
         .setMaxDepth(param.maxDepth)
+        .setMaxBins(param.maxBins)
         .setMinInstancesPerNode(param.MinInsPerNode)
-        .setMaxMemoryInMB(param.maxMemoryInMB)
         .setMinInfoGain(param.minInfoGain)
-        .setNumTrees(param.ForestTreeNum)
-        .setSeed(param.seed)
         .setCacheNodeIds(param.cacheNodeId)
 
-      val model = randomForest.fit(train)
+      val model = ygg_tree.fit(train)
       println("Model Size estimates: %.1f M".format(SizeEstimator.estimate(model) / 1048576.0))
       println(s"Fit a random forest in Spark cost ${(System.currentTimeMillis() - stime) / 1000.0} s")
-      println(s"Total nodes: ${model.totalNumNodes}")
 
       val predictions = model.transform(test)
 

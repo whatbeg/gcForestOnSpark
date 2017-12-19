@@ -1,7 +1,7 @@
 /*
  * Copyright 2017 Authors NJU PASA BigData Laboratory. Qiu Hu. huqiu00#163.com
  */
-package examples.RandomForest
+package examples.Yggdrasil
 
 import java.text.SimpleDateFormat
 import java.util.Date

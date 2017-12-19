@@ -174,14 +174,12 @@ private[spark] object RandomForestImpl extends Logging {
 
     timer.stop("init")
     var group = 1
-    var totalNodes = 0
     while (nodeStack.nonEmpty) {
       // Collect some nodes to split, and choose features for each node (if subsampling).
       // Each group of nodes may come from one or multiple trees, and at multiple levels.
       timer.start("selectNodesToSplit")
       val (nodesForGroup, treeToNodeToIndexInfo) =
-      RandomForestImpl.selectNodesToSplit(nodeStack, maxMemoryUsage, metadata, rng)
-      totalNodes += nodesForGroup.values.map(_.length).sum
+        RandomForestImpl.selectNodesToSplit(nodeStack, maxMemoryUsage, metadata, rng)
       timer.stop("selectNodesToSplit")
       logWarning(s"Random Forest Impl: Group $group nodes are selected," +
         s" total ${nodesForGroup.values.map(_.length).sum} nodes," +
@@ -210,8 +208,7 @@ private[spark] object RandomForestImpl extends Logging {
     // scalastyle:off println
     println("Internal timing for RandomForest:")
     println(s"$timer")
-    println(s"Total nodes: $totalNodes")
-    println(s"Group num to construct the forest: $group")
+    println(s"Group num to construct the forest: ${group-1}")
     // scalastyle:on println
 
     // Delete any remaining checkpoints used for node Id cache.
@@ -786,26 +783,25 @@ private[spark] object RandomForestImpl extends Logging {
           // Cumulative sum (scanLeft) of bin statistics.
           // Afterwards, binAggregates for a bin is the sum of aggregates for
           // that bin + all preceding bins.
-//          val nodeFeatureOffset = binAggregates.getFeatureOffset(featureIndexIdx)
-//          var splitIndex = 0
-//          while (splitIndex < numSplits) {
-//            binAggregates.mergeForFeature(nodeFeatureOffset, splitIndex + 1, splitIndex)
-//            splitIndex += 1
-//          }
+          val nodeFeatureOffset = binAggregates.getFeatureOffset(featureIndexIdx)
+          var splitIndex = 0
+          while (splitIndex < numSplits) {
+            binAggregates.mergeForFeature(nodeFeatureOffset, splitIndex + 1, splitIndex)
+            splitIndex += 1
+          }
           // Find best split.
           // scalastyle:off println
           val (bestFeatureSplitIndex, bestFeatureGainStats) =
-           getContinuousBestSplit(binAggregates, gainAndImpurityStats, numSplits, featureIndexIdx)
-//            Range(0, numSplits).map { splitIdx =>
-//              val leftChildStats =
-//                    binAggregates.getImpurityCalculator(nodeFeatureOffset, splitIdx)
-//              val rightChildStats =
-//                binAggregates.getImpurityCalculator(nodeFeatureOffset, numSplits)
-//              rightChildStats.subtract(leftChildStats)
-//              gainAndImpurityStats = calculateImpurityStats(gainAndImpurityStats,
-//                leftChildStats, rightChildStats, binAggregates.metadata)
-//              (splitIdx, gainAndImpurityStats)
-//            }.maxBy(_._2.gain)
+            Range(0, numSplits).map { splitIdx =>
+              val leftChildStats =
+                    binAggregates.getImpurityCalculator(nodeFeatureOffset, splitIdx)
+              val rightChildStats =
+                binAggregates.getImpurityCalculator(nodeFeatureOffset, numSplits)
+              rightChildStats.subtract(leftChildStats)
+              gainAndImpurityStats = calculateImpurityStats(gainAndImpurityStats,
+                leftChildStats, rightChildStats, binAggregates.metadata)
+              (splitIdx, gainAndImpurityStats)
+            }.maxBy(_._2.gain)
           (splits(featureIndex)(bestFeatureSplitIndex), bestFeatureGainStats)
         } else if (binAggregates.metadata.isUnordered(featureIndex)) {
           // Unordered categorical feature
