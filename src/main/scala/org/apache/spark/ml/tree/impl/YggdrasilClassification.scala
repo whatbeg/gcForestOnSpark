@@ -286,7 +286,7 @@ object YggdrasilClassification extends Logging {
     val centroidsForCategories: Seq[(Int, Double)] = if (metadata.isMulticlass) {
       // For categorical variables in multiclass classification,
       // the bins are ordered by the impurity of their corresponding labels.
-      Range(0, featureArity).map { case featureValue =>
+      Range(0, featureArity).map { featureValue =>
         val categoryStats = aggStats(featureValue)
         val centroid = if (categoryStats.getCount != 0) {
           categoryStats.getCalculator.calculate()
@@ -507,7 +507,7 @@ object YggdrasilClassification extends Logging {
     while (j < to) {
       val value = values(j)
       val label = labels(indices(j))
-      if (value != currentThreshold) {  // change currentThreshold to -111 @huqiu
+      if (value != currentThreshold) {
         // Check gain
         val leftWeight = leftCount / fullCount
         val rightWeight = rightCount / fullCount
@@ -529,14 +529,19 @@ object YggdrasilClassification extends Logging {
       j += 1
     }
 
-    val bestRightImpurityAgg = fullImpurityAgg.deepCopy().subtract(bestLeftImpurityAgg)
-    val bestImpurityStats = new ImpurityStats(bestGain, fullImpurity, fullImpurityAgg.getCalculator,
-      bestLeftImpurityAgg.getCalculator, bestRightImpurityAgg.getCalculator)
     val split = if (bestThreshold != Double.NegativeInfinity && bestThreshold != values.last) {
       Some(new YggContinuousSplit(featureIndex, bestThreshold))
     } else {
       None
     }
+    val bestImpurityStats =
+      if (split.isEmpty)
+        ImpurityStats.getInvalidImpurityStats(fullImpurityAgg.getCalculator)
+      else {
+        val bestRightImpurityAgg = fullImpurityAgg.deepCopy().subtract(bestLeftImpurityAgg)
+        new ImpurityStats(bestGain, fullImpurity, fullImpurityAgg.getCalculator,
+          bestLeftImpurityAgg.getCalculator, bestRightImpurityAgg.getCalculator)
+      }
     (split, bestImpurityStats)
   }
 }

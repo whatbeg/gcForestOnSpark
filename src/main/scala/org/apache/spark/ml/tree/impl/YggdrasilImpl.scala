@@ -67,12 +67,11 @@ private[spark] object YggdrasilImpl extends Logging{
     val colStoreInit: RDD[(Int, Array[Double])] = colStoreInput.getOrElse(
       rowToColumnStoreDense(input.map(_.features)))
     val numRows: Int = colStoreInit.first()._2.length
-    val rootNode =
-    if (metadata.numClasses > 1 && metadata.numClasses <= 32) {
-      YggdrasilClassification.trainImpl(input, colStoreInit, metadata, numRows, strategy.maxDepth)
-    } else {
-      YggdrasilRegression.trainImpl(input, colStoreInit, metadata, numRows, strategy.maxDepth)
-    }
+    val rootNode = if (metadata.numClasses > 1 && metadata.numClasses <= 32) {
+        YggdrasilClassification.trainImpl(input, colStoreInit, metadata, numRows, strategy.maxDepth)
+      } else {
+        YggdrasilRegression.trainImpl(input, colStoreInit, metadata, numRows, strategy.maxDepth)
+      }
     finalizeTree(rootNode, strategy.algo, strategy.numClasses, numFeatures,
       parentUID)
   }
