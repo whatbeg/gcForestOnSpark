@@ -158,14 +158,17 @@ object YggdrasilClassification extends Logging {
                      partitionInfos: RDD[PartitionInfo],
                      labelsBc: Broadcast[Array[Byte]],
                      metadata: YggdrasilMetadata) = {
-    // On each partition, for each feature on the partition, select the best split for each node.
-    // This will use:
-    //  - groupedColStore (the features)
-    //  - partitionInfos (the node -> instance mapping)
-    //  - labelsBc (the labels column)
-    // Each worker returns:
-    //   for each active node, best split + info gain,
-    //     where the best split is None if no useful split exists
+    /**
+      * On each partition, for each feature on the partition, select the best split for each node.
+      * This will use:
+      *   - groupedColStore (the features)
+      *   - partitionInfos (the node -> instance mapping)
+      *   - labelsBc (the labels column)
+      * Each worker returns:
+      *   for each active node, best split + info gain,
+      *   where the best split is None if no useful split exists
+      */
+
     val partBestSplitsAndGains: RDD[Array[(Option[YggSplit], ImpurityStats)]] = partitionInfos.map {
       case PartitionInfo(columns: Array[FeatureVector], nodeOffsets: Array[Int],
       activeNodes: BitSet, fullImpurityAggs: Array[ImpurityAggregatorSingle]) =>
