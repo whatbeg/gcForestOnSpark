@@ -8,7 +8,7 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.ml.classification.DecisionTreeClassificationModel
 import org.apache.spark.ml.feature.LabeledPoint
 import org.apache.spark.ml.regression.DecisionTreeRegressionModel
-import org.apache.spark.ml.tree.impl.YggdrasilUtil.rowToColumnStoreDense
+import org.apache.spark.ml.tree.impl.YggdrasilUtil._
 import org.apache.spark.ml.tree._
 import org.apache.spark.mllib.tree.configuration.Strategy
 import org.apache.spark.mllib.tree.impurity.ImpurityCalculator

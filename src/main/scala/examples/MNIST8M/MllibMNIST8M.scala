@@ -3,13 +3,12 @@
  */
 package examples.MNIST8M
 
-
-import org.apache.spark.ml.classification.YggdrasilClassifier
+import org.apache.spark.ml.classification.{DecisionTreeClassifier, YggdrasilClassifier}
 import org.apache.spark.ml.linalg.Vector
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.util.SizeEstimator
 
-object YggMNIST8M {
+object MllibMNIST8M {
   def main(args: Array[String]): Unit = {
 
     import Utils._
@@ -30,15 +29,16 @@ object YggMNIST8M {
       train.show(5)
 
       val stime = System.currentTimeMillis()
-      val ygg_tree = new YggdrasilClassifier()
+      val mllib_tree = new DecisionTreeClassifier()
         .setFeaturesCol("features")
         .setLabelCol("label")
         .setMaxDepth(param.maxDepth)
+        .setMaxBins(param.maxBins)
         .setMinInstancesPerNode(param.MinInsPerNode)
         .setMinInfoGain(param.minInfoGain)
         .setCacheNodeIds(param.cacheNodeId)
 
-      val model = ygg_tree.fit(train)
+      val model = mllib_tree.fit(train)
       println(s"Fit a Yggdrasil decision tree in Spark cost ${(System.currentTimeMillis() - stime) / 1000.0} s")
       println("Model Size estimates: %.1f M".format(SizeEstimator.estimate(model) / 1048576.0))
       println(s"Total nodes: ${model.numNodes}")
