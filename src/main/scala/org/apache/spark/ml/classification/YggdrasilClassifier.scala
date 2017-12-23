@@ -73,7 +73,7 @@ class YggdrasilClassifier (override val uid: String)
        parentUID: Option[String] = None): DecisionTreeModel = {
     // TODO: Check validity of params
     // TODO: Check for empty dataset
-    YggdrasilImpl.trainImpl(input, strategy, colStoreInput, parentUID)
+    YggdrasilImpl.train(input, strategy, colStoreInput, parentUID)
   }
 }
 

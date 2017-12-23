@@ -37,11 +37,11 @@ import org.roaringbitmap.RoaringBitmap
   */
 private[spark] object YggdrasilImpl extends Logging{
 
-  def trainImpl(
-                 input: RDD[LabeledPoint],
-                 strategy: Strategy,
-                 colStoreInput: Option[RDD[(Int, Array[Double])]],
-                 parentUID: Option[String] = None): DecisionTreeModel = {
+  def train(
+       input: RDD[LabeledPoint],
+       strategy: Strategy,
+       colStoreInput: Option[RDD[(Int, Array[Double])]],
+       parentUID: Option[String] = None): DecisionTreeModel = {
     val metadata = YggdrasilMetadata.fromStrategy(strategy)
     val numFeatures = input.first().features.size
     // The case with 1 node (depth = 0) is handled separately.
@@ -60,18 +60,25 @@ private[spark] object YggdrasilImpl extends Logging{
         parentUID)
     }
 
+    val timer = new TimeTracker()
     // Prepare column store.
     //   Note: rowToColumnStoreDense checks to make sure numRows < Int.MaxValue.
     // TODO: Is this mapping from arrays to iterators to arrays (when constructing learningData)?
     //       Or is the mapping implicit (i.e., not costly)?
+    timer.start("rowToColumnStoreDense")
     val colStoreInit: RDD[(Int, Array[Double])] = colStoreInput.getOrElse(
       rowToColumnStoreDense(input.map(_.features)))
     val numRows: Int = colStoreInit.first()._2.length
+    timer.stop("rowToColumnStoreDense")
+    timer.start("training")
     val rootNode = if (metadata.numClasses > 1 && metadata.numClasses <= 32) {
-        YggdrasilClassification.trainImpl(input, colStoreInit, metadata, numRows, strategy.maxDepth)
+        YggdrasilClassification.run(input, colStoreInit, metadata, numRows, strategy.maxDepth)
       } else {
-        YggdrasilRegression.trainImpl(input, colStoreInit, metadata, numRows, strategy.maxDepth)
+        YggdrasilRegression.run(input, colStoreInit, metadata, numRows, strategy.maxDepth)
       }
+    timer.stop("training")
+    println("Internal timing for Decision Tree:")
+    println(s"$timer")
     finalizeTree(rootNode, strategy.algo, strategy.numClasses, numFeatures,
       parentUID)
   }
@@ -518,7 +525,7 @@ private[spark] object YggdrasilImpl extends Logging{
         }
 
         val numBitsNotSet = to - from - numBitsSet // number of instances splitting left
-      val oldOffset = newNodeOffsets(nodeIdx).head
+        val oldOffset = newNodeOffsets(nodeIdx).head
 
         // If numBitsNotSet or numBitsSet equals 0, then this node was not split,
         // so we do not need to update its part of the column. Otherwise, we update it.
@@ -764,4 +771,6 @@ private[spark] object YggdrasilImpl extends Logging{
       this
     }
   }
+
+
 }

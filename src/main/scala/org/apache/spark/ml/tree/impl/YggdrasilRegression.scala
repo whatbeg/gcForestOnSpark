@@ -15,7 +15,7 @@ import org.roaringbitmap.RoaringBitmap
 
 object YggdrasilRegression {
 
-  def trainImpl(
+  def run(
        input: RDD[LabeledPoint],
        colStoreInit: RDD[(Int, Array[Double])],
        metadata: YggdrasilMetadata,
