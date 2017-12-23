@@ -5,7 +5,6 @@ package org.apache.spark.ml.tree.impl
 
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.ml.tree._
-import YggdrasilImpl.{FeatureVector, PartitionInfo}
 import org.apache.spark.internal.Logging
 import org.apache.spark.ml.feature.LabeledPoint
 import org.apache.spark.mllib.tree.model.ImpurityStats
@@ -17,13 +16,16 @@ import org.roaringbitmap.RoaringBitmap
 
 object YggdrasilClassification extends Logging {
 
-  def trainImpl(
+  def run(
        input: RDD[LabeledPoint],
        colStoreInit: RDD[(Int, Array[Double])],
        metadata: YggdrasilMetadata,
        numRows: Int,
        maxDepth: Int): Node = {
 
+    val timer = new TimeTracker()
+
+    timer.start("total")
     val labels = new Array[Byte](numRows)
     input.map(_.label).zipWithIndex().collect().foreach { case (label: Double, rowIndex: Long) =>
       labels(rowIndex.toInt) = label.toByte
@@ -34,10 +36,13 @@ object YggdrasilClassification extends Logging {
     //       We could improve this by applying first-level sorting (by node) to labels.
 
     // Sort each column by feature values.
+    timer.start("sort FeatureVectors")
     val colStore: RDD[FeatureVector] = colStoreInit.map { case (featureIndex, col) =>
       val featureArity: Int = metadata.categoricalFeaturesInfo.getOrElse(featureIndex, 0)
       FeatureVector.fromOriginal(featureIndex, featureArity, col)
     }
+    // colStore.cache().count()
+    timer.stop("sort FeatureVectors")
 //    val ha = colStore.collect()
 //    for (elem <- ha) {
 //      print(s"feature ${elem.featureIndex}: ")
@@ -46,12 +51,14 @@ object YggdrasilClassification extends Logging {
 //    }
     // Group columns together into one array of columns per partition.
     // TODO: Test avoiding this grouping, and see if it matters.
+    timer.start("grouping")
     val groupedColStore: RDD[Array[FeatureVector]] = colStore.mapPartitions {
       iterator: Iterator[FeatureVector] =>
         if (iterator.nonEmpty) Iterator(iterator.toArray) else Iterator()
     }
     groupedColStore.persist(StorageLevel.MEMORY_AND_DISK)
-
+    // groupedColStore.count()
+    timer.stop("grouping")
     // Initialize partitions with 1 node (each instance at the root node).
     val fullImpurityAgg = metadata.createImpurityAggregator()
     var i = 0
@@ -66,6 +73,7 @@ object YggdrasilClassification extends Logging {
       PartitionInfo(groupedCols, Array[Int](0, numRows), initActive, Array(fullImpurityAgg))
     }
 
+    timer.start("training model")
     // Initialize model.
     // Note: We do not use node indices.
     val rootNode = LearningNode.emptyNode(1) // TODO: remove node id
@@ -82,8 +90,10 @@ object YggdrasilClassification extends Logging {
 //          }
 //      }
       // Compute best split for each active node.
+      timer.start("computeBestSplits")
       val bestSplitsAndGains: Array[(Option[YggSplit], ImpurityStats)] =
         computeBestSplits(partitionInfos, labelsBc, metadata)
+      timer.stop("computeBestSplits")
 //      println("bestSplitAndGains:")
 //      for (elem <- bestSplitsAndGains) {
 //        val split = elem._1.getOrElse(new ContinuousSplit(-1, -1))
@@ -99,8 +109,10 @@ object YggdrasilClassification extends Logging {
 
       // Update current model and node periphery.
       // Note: This flatMap has side effects (on the model).
+      timer.start("computeActiveNodePeriphery")
       activeNodePeriphery =
         YggdrasilImpl.computeActiveNodePeriphery(activeNodePeriphery, bestSplitsAndGains, metadata.minInfoGain)
+      timer.stop("computeActiveNodePeriphery")
       // activeNodePeriphery.foreach(println(_))
       // We keep all old nodeOffsets and add one for each node split.
       // Each node split adds 2 nodes to activeNodePeriphery.
@@ -128,9 +140,11 @@ object YggdrasilClassification extends Logging {
         val buf2 = ser.serialize(bv)
         logWarning(s"currentLevel: $currentLevel," +
           s" RoaringBitmap num bytes: ${buf.remaining()}, BitSet num bytes: ${buf2.remaining()}")
+        timer.start("get new PartitionInfos")
         val newPartitionInfos = partitionInfos.map { partitionInfo =>
           partitionInfo.update(bv, numNodeOffsets, labelsBc.value, metadata)
         }
+        timer.stop("get new PartitionInfos")
         // TODO: remove.  For some reason, this is needed to make things work.
         // Probably messing up somewhere above...
         newPartitionInfos.cache().count()
@@ -143,6 +157,9 @@ object YggdrasilClassification extends Logging {
     // Done with learning
     groupedColStore.unpersist()
     labelsBc.unpersist()
+    timer.stop("training model")
+    println("Internal timing for YggdrasilClassification:")
+    println(s"$timer")
     rootNode.toNode
   }
 
@@ -158,14 +175,17 @@ object YggdrasilClassification extends Logging {
                      partitionInfos: RDD[PartitionInfo],
                      labelsBc: Broadcast[Array[Byte]],
                      metadata: YggdrasilMetadata) = {
-    // On each partition, for each feature on the partition, select the best split for each node.
-    // This will use:
-    //  - groupedColStore (the features)
-    //  - partitionInfos (the node -> instance mapping)
-    //  - labelsBc (the labels column)
-    // Each worker returns:
-    //   for each active node, best split + info gain,
-    //     where the best split is None if no useful split exists
+    /**
+      * On each partition, for each feature on the partition, select the best split for each node.
+      * This will use:
+      *   - groupedColStore (the features)
+      *   - partitionInfos (the node -> instance mapping)
+      *   - labelsBc (the labels column)
+      * Each worker returns:
+      *   for each active node, best split + info gain,
+      *   where the best split is None if no useful split exists
+      */
+
     val partBestSplitsAndGains: RDD[Array[(Option[YggSplit], ImpurityStats)]] = partitionInfos.map {
       case PartitionInfo(columns: Array[FeatureVector], nodeOffsets: Array[Int],
       activeNodes: BitSet, fullImpurityAggs: Array[ImpurityAggregatorSingle]) =>
@@ -200,11 +220,7 @@ object YggdrasilClassification extends Logging {
     // Aggregate best split for each active node.
     partBestSplitsAndGains.treeReduce { case (splitsGains1, splitsGains2) =>
       splitsGains1.zip(splitsGains2).map { case ((split1, gain1), (split2, gain2)) =>
-        if (split1.getOrElse(None) == None) {
-          (split2, gain2)
-        } else if (split2.getOrElse(None) == None) {
-          (split1, gain1)
-        } else if (gain1.gain > gain2.gain) {
+        if (gain1.gain > gain2.gain) {
           (split1, gain1)
         } else {
           (split2, gain2)
@@ -298,7 +314,7 @@ object YggdrasilClassification extends Logging {
     } else if (metadata.isClassification) { // binary classification
       // For categorical variables in binary classification,
       // the bins are ordered by the centroid of their corresponding labels.
-      Range(0, featureArity).map { case featureValue =>
+      Range(0, featureArity).map { featureValue =>
         val categoryStats = aggStats(featureValue)
         val centroid = if (categoryStats.getCount != 0) {
           assert(categoryStats.stats.length == 2)
@@ -534,14 +550,9 @@ object YggdrasilClassification extends Logging {
     } else {
       None
     }
-    val bestImpurityStats =
-      if (split.isEmpty)
-        ImpurityStats.getInvalidImpurityStats(fullImpurityAgg.getCalculator)
-      else {
-        val bestRightImpurityAgg = fullImpurityAgg.deepCopy().subtract(bestLeftImpurityAgg)
-        new ImpurityStats(bestGain, fullImpurity, fullImpurityAgg.getCalculator,
-          bestLeftImpurityAgg.getCalculator, bestRightImpurityAgg.getCalculator)
-      }
+    val bestRightImpurityAgg = fullImpurityAgg.deepCopy().subtract(bestLeftImpurityAgg)
+    val bestImpurityStats = new ImpurityStats(bestGain, fullImpurity, fullImpurityAgg.getCalculator,
+      bestLeftImpurityAgg.getCalculator, bestRightImpurityAgg.getCalculator)
     (split, bestImpurityStats)
   }
 }

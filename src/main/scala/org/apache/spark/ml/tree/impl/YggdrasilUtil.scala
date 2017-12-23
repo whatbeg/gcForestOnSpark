@@ -202,8 +202,8 @@ object YggdrasilUtil {
     * @return RDD of (column index, column) pairs
     */
   def rowToColumnStoreSparse(
-                              rowStore: RDD[Vector],
-                              overPartitionFactor: Int = 3): RDD[(Int, Vector)] = {
+      rowStore: RDD[Vector],
+      overPartitionFactor: Int = 3): RDD[(Int, Vector)] = {
 
     val numRows = {
       val longNumRows: Long = rowStore.count()
@@ -302,7 +302,7 @@ object YggdrasilUtil {
              */
             var groupIndex = 0
             var k = 0 // index into SparseVector non-zeros
-          val nnz = sv.indices.length
+            val nnz = sv.indices.length
             while (groupIndex < numGroups && k < nnz) {
               val fromColumn = groupStartColumns(groupIndex)
               val groupEndColumn = groupStartColumns(groupIndex + 1)

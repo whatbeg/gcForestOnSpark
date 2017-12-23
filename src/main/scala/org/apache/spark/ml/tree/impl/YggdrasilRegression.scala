@@ -5,7 +5,6 @@ package org.apache.spark.ml.tree.impl
 
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.ml.tree._
-import YggdrasilImpl.{FeatureVector, PartitionInfo}
 import org.apache.spark.ml.feature.LabeledPoint
 import org.apache.spark.mllib.tree.model.ImpurityStats
 import org.apache.spark.rdd.RDD
@@ -15,7 +14,7 @@ import org.roaringbitmap.RoaringBitmap
 
 object YggdrasilRegression {
 
-  def trainImpl(
+  def run(
        input: RDD[LabeledPoint],
        colStoreInit: RDD[(Int, Array[Double])],
        metadata: YggdrasilMetadata,
@@ -251,7 +250,7 @@ object YggdrasilRegression {
     val centroidsForCategories: Seq[(Int, Double)] = if (metadata.isMulticlass) {
       // For categorical variables in multiclass classification,
       // the bins are ordered by the impurity of their corresponding labels.
-      Range(0, featureArity).map { case featureValue =>
+      Range(0, featureArity).map { featureValue =>
         val categoryStats = aggStats(featureValue)
         val centroid = if (categoryStats.getCount != 0) {
           categoryStats.getCalculator.calculate()
@@ -263,7 +262,7 @@ object YggdrasilRegression {
     } else if (metadata.isClassification) { // binary classification
       // For categorical variables in binary classification,
       // the bins are ordered by the centroid of their corresponding labels.
-      Range(0, featureArity).map { case featureValue =>
+      Range(0, featureArity).map { featureValue =>
         val categoryStats = aggStats(featureValue)
         val centroid = if (categoryStats.getCount != 0) {
           assert(categoryStats.stats.length == 2)
@@ -276,7 +275,7 @@ object YggdrasilRegression {
     } else { // regression
       // For categorical variables in regression,
       // the bins are ordered by the centroid of their corresponding labels.
-      Range(0, featureArity).map { case featureValue =>
+      Range(0, featureArity).map { featureValue =>
         val categoryStats = aggStats(featureValue)
         val centroid = if (categoryStats.getCount != 0) {
           categoryStats.getCalculator.predict
