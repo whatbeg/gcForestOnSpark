@@ -39,7 +39,7 @@ object MllibMNIST8M {
         .setCacheNodeIds(param.cacheNodeId)
 
       val model = mllib_tree.fit(train)
-      println(s"Fit a Yggdrasil decision tree in Spark cost ${(System.currentTimeMillis() - stime) / 1000.0} s")
+      println(s"Fit a MLlib decision tree in Spark cost ${(System.currentTimeMillis() - stime) / 1000.0} s")
       println("Model Size estimates: %.1f M".format(SizeEstimator.estimate(model) / 1048576.0))
       println(s"Total nodes: ${model.numNodes}")
 

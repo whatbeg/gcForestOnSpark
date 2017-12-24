@@ -187,7 +187,7 @@ object YggdrasilClassification extends Logging {
       */
 
 //    println("-----------------------------------------------------------------------")
-    val partBestSplitsAndGains: Array[Array[(Option[YggSplit], ImpurityStats)]] = partitionInfos.collect().map {
+    val partBestSplitsAndGains: RDD[Array[(Option[YggSplit], ImpurityStats)]] = partitionInfos.map {
       case PartitionInfo(columns: Array[FeatureVector], nodeOffsets: Array[Int],
       activeNodes: BitSet, fullImpurityAggs: Array[ImpurityAggregatorSingle]) =>
         val localLabels = labelsBc.value
@@ -227,7 +227,7 @@ object YggdrasilClassification extends Logging {
 //      }
 //    }
     // Aggregate best split for each active node.
-    partitionInfos.sparkContext.parallelize(partBestSplitsAndGains).treeReduce { case (splitsGains1, splitsGains2) =>
+    partBestSplitsAndGains.treeReduce { case (splitsGains1, splitsGains2) =>
       splitsGains1.zip(splitsGains2).map { case ((split1, gain1), (split2, gain2)) =>
         if (gain1.gain > gain2.gain) {
           (split1, gain1)
@@ -562,7 +562,7 @@ object YggdrasilClassification extends Logging {
     val bestRightImpurityAgg = fullImpurityAgg.deepCopy().subtract(bestLeftImpurityAgg)
     val bestImpurityStats = new ImpurityStats(bestGain, fullImpurity, fullImpurityAgg.getCalculator,
       bestLeftImpurityAgg.getCalculator, bestRightImpurityAgg.getCalculator)
-    if (split.isEmpty && bestImpurityStats.gain > 0.0) println("SPLIT NONE BUT GAIN POSITIVE")
+//    if (split.isEmpty && bestImpurityStats.gain > 0.0) logWarning("SPLIT NONE BUT GAIN POSITIVE")
     (split, bestImpurityStats)
   }
 }
