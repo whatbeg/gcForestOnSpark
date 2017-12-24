@@ -3,12 +3,12 @@
  */
 package examples.MNIST8M
 
-import org.apache.spark.ml.classification.DecisionTreeClassifier
+import org.apache.spark.ml.classification.RandomForestCARTClassifier
 import org.apache.spark.ml.linalg.Vector
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.util.SizeEstimator
 
-object MllibMNIST8M {
+object MllibRFMNIST8M {
   def main(args: Array[String]): Unit = {
 
     import Utils._
@@ -29,27 +29,28 @@ object MllibMNIST8M {
       train.show(5)
 
       val stime = System.currentTimeMillis()
-      val mllib_tree = new DecisionTreeClassifier()
+      val mllib_rf = new RandomForestCARTClassifier()
         .setFeaturesCol("features")
         .setLabelCol("label")
+        .setNumTrees(param.ForestTreeNum)
         .setMaxDepth(param.maxDepth)
         .setMaxBins(param.maxBins)
         .setMinInstancesPerNode(param.MinInsPerNode)
         .setMinInfoGain(param.minInfoGain)
         .setCacheNodeIds(param.cacheNodeId)
 
-      val model = mllib_tree.fit(train)
-      println(s"Fit a MLlib decision tree in Spark cost ${(System.currentTimeMillis() - stime) / 1000.0} s")
+      val model = mllib_rf.fit(train)
+      println(s"Fit a Mllib Random Forest in Spark cost ${(System.currentTimeMillis() - stime) / 1000.0} s")
       println("Model Size estimates: %.1f M".format(SizeEstimator.estimate(model) / 1048576.0))
-      println(s"Total nodes: ${model.numNodes}")
+      println(s"Total nodes: ${model.totalNumNodes}")
 
-//      val predictions = model.transform(test)
-//
-//      // Select example rows to display.
-//      predictions.select("probability", "label", "features").show(5)
-//      val accuracy = gcForestEvaluator.evaluate(predictions.withColumnRenamed("probability", "features"))
-//
-//      println(s"[$getNowTime] Test Accuracy = " + accuracy)
+      //      val predictions = model.transform(test)
+      //
+      //      // Select example rows to display.
+      //      predictions.select("probability", "label", "features").show(5)
+      //      val accuracy = gcForestEvaluator.evaluate(predictions.withColumnRenamed("probability", "features"))
+      //
+      //      println(s"[$getNowTime] Test Accuracy = " + accuracy)
       model
     })
     spark.stop()
