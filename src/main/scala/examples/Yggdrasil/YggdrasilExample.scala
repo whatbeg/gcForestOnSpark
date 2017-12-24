@@ -57,7 +57,7 @@ object YggdrasilExample {
       println("Model Size estimates: %.1f M".format(SizeEstimator.estimate(model) / 1048576.0))
       println(s"Fit a Yggdrasil decision tree in Spark cost ${(System.currentTimeMillis() - stime) / 1000.0} s")
       println(s"Total nodes: ${model.numNodes}")
-
+//      println(model.toDebugString)
       val predictions = model.transform(test)
 
       // Select example rows to display.
